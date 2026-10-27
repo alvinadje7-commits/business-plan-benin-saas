@@ -1,0 +1,39 @@
+
+{
+  "sector_code": "anacarde",
+  "sector_name": "Anacarde / Cajou",
+  "description": "Production, collecte, transformation cajou Bénin",
+  "currency": "XOF",
+  "production_models": ["production_brute","collecte","transformation","export_amande"],
+  "assumption_fields": [
+    {"key":"superficie_ha","label":"Superficie exploitée","type":"number","unit":"ha","required":true},
+    {"key":"rendement_kg_ha","label":"Rendement brut","type":"number","unit":"kg/ha","default":600},
+    {"key":"prix_bord_champ","label":"Prix bord champ","type":"currency","unit":"FCFA/kg","default":375},
+    {"key":"taux_transformation","label":"Taux rendement amande","type":"percentage","default":0.22},
+    {"key":"prix_amande_kg","label":"Prix amande export","type":"currency","unit":"FCFA/kg","default":3500},
+    {"key":"cout_collecte_kg","label":"Coût collecte + transport","type":"currency","unit":"FCFA/kg","default":45},
+    {"key":"saisonnalite","label":"Mois de récolte principal","type":"select","options":[{"label":"Février-Avril","value":"fev_avr"},{"label":"Mars-Mai","value":"mars_mai"}]}
+  ],
+  "revenue_rules": [
+    {"key":"vente_brute","label":"Vente noix brute","formula":"superficie_ha * rendement_kg_ha * prix_bord_champ","unit":"FCFA"},
+    {"key":"vente_amande","label":"Vente amande si transfo","formula":"superficie_ha * rendement_kg_ha * taux_transformation * prix_amande_kg","unit":"FCFA"}
+  ],
+  "cost_rules": [
+    {"key":"collecte","label":"Collecte","formula":"superficie_ha * rendement_kg_ha * cout_collecte_kg","type":"variable"},
+    {"key":"entretien","label":"Entretien plantation","formula":"superficie_ha * 45000","type":"fixed"}
+  ],
+  "kpis": [
+    {"key":"marge_ha","label":"Marge / ha","formula":"(vente_brute - collecte - entretien)/superficie_ha","unit":"FCFA/ha"}
+  ],
+  "default_investments": [
+    {"key":"plantation","label":"Mise en place plantation","category":"agricole","duration_months":180},
+    {"key":"magasin","label":"Magasin stockage","category":"batiments","duration_months":120},
+    {"key":"decortiqueuse","label":"Décortiqueuse","category":"equipements","duration_months":72}
+  ],
+  "risks": [
+    {"key":"climat","label":"Aléa climatique","impact":"high"},
+    {"key":"prix_mondial","label":"Volatilité cours mondial","impact":"high"}
+  ],
+  "document_sections": ["resume","filiere_anacarde_benin","modele_collecte","transformation","financier","risques"],
+  "charts": ["saisonnalite","marge_ha","prix_mondial"]
+}

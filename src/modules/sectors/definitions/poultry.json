@@ -1,0 +1,47 @@
+
+{
+  "sector_code": "poultry",
+  "sector_name": "Aviculture",
+  "description": "Poulets de chair, pondeuses, poussins - OHADA",
+  "currency": "XOF",
+  "production_models": ["poulets_de_chair","pondeuses","poussins","reproducteurs"],
+  "assumption_fields": [
+    {"key":"number_of_cycles_per_year","label":"Nombre de cycles par an","type":"number","unit":"cycles","default":5,"required":true,"help":"Bénin: 5 à 6 cycles/an en claustration"},
+    {"key":"birds_per_cycle","label":"Effectif par cycle","type":"number","unit":"sujets","required":true},
+    {"key":"mortality_rate","label":"Taux de mortalité","type":"percentage","default":0.05,"min":0,"max":0.3},
+    {"key":"average_weight","label":"Poids moyen à la vente","type":"number","unit":"kg","default":1.8},
+    {"key":"selling_price_per_kg","label":"Prix de vente au kg","type":"currency","unit":"FCFA","default":2200},
+    {"key":"feed_consumption_per_bird","label":"Consommation aliment / sujet / cycle","type":"number","unit":"kg","default":3.5},
+    {"key":"feed_price","label":"Prix aliment","type":"currency","unit":"FCFA/kg","default":350},
+    {"key":"chick_price","label":"Prix poussin 1 jour","type":"currency","unit":"FCFA","default":800},
+    {"key":"vaccine_cost_per_bird","label":"Vaccins + veto / sujet","type":"currency","unit":"FCFA","default":150},
+    {"key":"litter_cost_per_cycle","label":"Litière + chauffage / cycle","type":"currency","unit":"FCFA","default":75000}
+  ],
+  "revenue_rules": [
+    {"key":"poultry_sales","label":"Vente poulets","formula":"birds_per_cycle * (1 - mortality_rate) * average_weight * selling_price_per_kg * number_of_cycles_per_year","unit":"FCFA"},
+    {"key":"manure_sales","label":"Vente fiente","formula":"birds_per_cycle * 0.5 * 50 * number_of_cycles_per_year","unit":"FCFA"}
+  ],
+  "cost_rules": [
+    {"key":"feed_cost","label":"Aliment","formula":"birds_per_cycle * feed_consumption_per_bird * feed_price * number_of_cycles_per_year","type":"variable"},
+    {"key":"chick_cost","label":"Poussins","formula":"birds_per_cycle * chick_price * number_of_cycles_per_year","type":"variable"},
+    {"key":"vaccine_cost","label":"Vetérinaire","formula":"birds_per_cycle * vaccine_cost_per_bird * number_of_cycles_per_year","type":"variable"},
+    {"key":"litter_cost","label":"Litière & chauffage","formula":"litter_cost_per_cycle * number_of_cycles_per_year","type":"fixed"}
+  ],
+  "kpis": [
+    {"key":"cout_prod_kg","label":"Coût de production / kg","formula":"(feed_cost+chick_cost+vaccine_cost)/ (birds_per_cycle*(1-mortality_rate)*average_weight*number_of_cycles_per_year)","unit":"FCFA/kg"},
+    {"key":"marge_sujet","label":"Marge / sujet","formula":"(poultry_sales - feed_cost - chick_cost)/ (birds_per_cycle*number_of_cycles_per_year)","unit":"FCFA"},
+    {"key":"ic","label":"Indice de consommation","formula":"feed_consumption_per_bird/average_weight","unit":"ratio"}
+  ],
+  "default_investments": [
+    {"key":"poulailler","label":"Construction poulailler 500m²","category":"batiments","duration_months":120},
+    {"key":"materiel_elevage","label":"Abreuvoirs, mangeoires, chauffage","category":"equipements","duration_months":60},
+    {"key":"forage","label":"Forage + château d'eau","category":"equipements","duration_months":84}
+  ],
+  "risks": [
+    {"key":"grippe_aviaire","label":"Risque épidémie / grippe aviaire","impact":"high"},
+    {"key":"aliment","label":"Volatilité prix aliment","impact":"medium"},
+    {"key":"mortalite","label":"Mortalité supérieure à 5%","impact":"medium"}
+  ],
+  "document_sections": ["resume_executif","marche_avicole_benin","modele_production","investissements","plan_financement","hypotheses_zootechniques","comptes_previsionnels","rentabilite","risques"],
+  "charts": ["evolution_ca","marge_par_cycle","structure_couts","tresorerie"]
+}
