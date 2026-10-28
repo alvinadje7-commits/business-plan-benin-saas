@@ -1,7 +1,14 @@
+import { createClient } from '@neondatabase/neon-js'
+import { BetterAuthReactAdapter } from '@neondatabase/neon-js/auth/react/adapters'
 
-import { createClient } from '@supabase/supabase-js'
-export const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL!,
-  import.meta.env.VITE_SUPABASE_ANON_KEY!,
-  { auth:{ persistSession:true, autoRefreshToken:true } }
-)
+export const client = createClient({
+  auth: {
+    adapter: BetterAuthReactAdapter(),
+    url: import.meta.env.VITE_NEON_AUTH_URL,
+  },
+  dataApi: {
+    url: import.meta.env.VITE_NEON_DATA_API_URL,
+  },
+})
+
+export const authClient = client.auth

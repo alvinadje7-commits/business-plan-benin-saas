@@ -36,3 +36,8 @@ workers/dist/
 # Cache
 .cache/
 .vite/
+
+# TypeScript build artifacts
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
