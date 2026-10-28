@@ -36,7 +36,7 @@ export function ChargesChart({
         <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
         <p className="text-xs text-slate-500">{subtitle}</p>
       </div>
-      <ResponsiveContainer width="100%" height={260}>
+      <ResponsiveContainer width="100%" height={220}>
         <BarChart data={data} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
           <CartesianGrid stroke={COLORS.border} strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="poste" tick={{ fill: '#64748B', fontSize: 11 }} axisLine={false} tickLine={false} />

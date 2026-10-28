@@ -34,7 +34,7 @@ export function RepartitionChart({
         <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
         <p className="text-xs text-slate-500">{subtitle}</p>
       </div>
-      <ResponsiveContainer width="100%" height={260}>
+      <ResponsiveContainer width="100%" height={220}>
         <PieChart>
           <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={2}>
             {data.map((_, i) => (

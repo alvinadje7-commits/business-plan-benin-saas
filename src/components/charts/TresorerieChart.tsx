@@ -24,7 +24,7 @@ export function TresorerieChart({
         </div>
         <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">Trésorerie</span>
       </div>
-      <ResponsiveContainer width="100%" height={260}>
+      <ResponsiveContainer width="100%" height={220}>
         <AreaChart data={data} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="tresoGradient" x1="0" y1="0" x2="0" y2="1">

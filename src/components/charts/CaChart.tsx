@@ -27,7 +27,7 @@ export function CaChart({
         </div>
         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">XOF</span>
       </div>
-      <ResponsiveContainer width="100%" height={300}>
+      <ResponsiveContainer width="100%" height={240}>
         <ComposedChart data={data} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
           <CartesianGrid stroke={COLORS.border} strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="mois" tick={{ fill: '#64748B', fontSize: 12 }} axisLine={false} tickLine={false} />
