@@ -11,7 +11,7 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@neondatabase/neon-js": "^0.9.0-beta",
+    "@neondatabase/neon-js": "^0.7.0-beta",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "exceljs": "^4.4.0",
