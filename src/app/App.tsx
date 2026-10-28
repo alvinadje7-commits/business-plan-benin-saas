@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { client } from '../lib/supabase/client'
+
 
 // ========== TYPES ==========
 type FieldType = 'number'|'percentage'|'currency'|'text'|'select'
@@ -218,12 +218,12 @@ export default function App() {
   const saveProject = async () => {
     setIsSaving(true)
     try {
-      const { data, error } = await client
-        .from('projects')
-        .insert([{ name: projectName, sector: sectorCode }])
-        .select()
-
-      if (error) throw error
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: projectName, sector: sectorCode })
+      })
+      const data = await response.json()
       alert('✅ Projet sauvegardé avec succès dans la base de données !')
       console.log('Données sauvegardées:', data)
     } catch (err: any) {
