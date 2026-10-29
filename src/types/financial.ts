@@ -1,130 +1,24 @@
-// ============================================================
-// Types financiers enrichis — Sprint 1
-// ============================================================
 
-export type Scenario = 'OPTIMISTE' | 'MOYENNE' | 'PESSIMISTE';
-
-export const SCENARIO_COEFS: Record<Scenario, number> = {
-  OPTIMISTE: 1.00,
-  MOYENNE: 0.90,
-  PESSIMISTE: 0.85,
-};
-
-export type NatureInvestissement =
-  | 'IMMOBILISATION_INCORPORELLE'
-  | 'TERRAIN'
-  | 'BATIMENTS'
-  | 'MATERIELS'
-  | 'TRANSPORT'
-  | 'MOBILIERS'
-  | 'OUTILLAGES';
-
-export type Affectation = 'FP_R' | 'FP_AR' | 'EMPRUNT' | 'SUBVENTION';
-
-export type RealizationStatus = 'REALISE' | 'A_REALISER';
-
-export interface InvestmentLine {
-  id: string;
-  designation: string;
-  quantity: number;
-  unitPrice: number;
-  amount: number;
-  affectation: Affectation;
-  nature: NatureInvestissement;
-  realizationStatus: RealizationStatus;
-  year: number;                 // 0..N
-  amortizationYears: number;    // 0 pour terrain
-  vncOverride?: number;
+export interface Project {
+  id:string; organization_id:string; name:string; sector_code:string; sub_sector:string;
+  duration_months:number; start_date:string; currency:string; objective:'banque'|'investisseur'|'subvention'|'interne';
+  status:'brouillon'|'complet'|'a_verifier'|'valide'|'partage';
+  created_at:string; updated_at:string
 }
-
-export interface AmortizationLineDetail {
-  line: InvestmentLine;
-  dotations: number[];          // length = durationYears
-  balances: number[];           // length = durationYears
-  vnc: number;
+export interface InvestmentItem {
+  id:string; label:string; category:string; amount:number; vat_rate:number;
+  depreciation_duration:number; method:'lineaire'|'degressif'; start_date:string; residual_value:number
 }
-
-export interface AmortizationCategoryResult {
-  lines: AmortizationLineDetail[];
-  totalDotation: number[];
-  totalVNC: number[];
-  totalVRNI: number;
+export interface FinancingSource {
+  id:string; type:'capital'|'cca'|'emprunt'|'microfinance'|'subvention'|'leasing'|'fournisseur';
+  amount:number; interest_rate:number; duration_months:number; defer_months:number; frequency:'mensuelle'|'trimestrielle'
 }
-
-export interface AmortizationResult {
-  realized: AmortizationCategoryResult;
-  toRealize: AmortizationCategoryResult;
-  synth: AmortizationCategoryResult;
-}
-
-export type Periodicity =
-  | 'MENSUALITE'
-  | 'TRIMESTRIALITE'
-  | 'SEMESTRIALITE'
-  | 'ANNUITE';
-
-export interface LoanConfig {
-  id: string;
-  label: string;
-  capital: number;
-  rate: number;                 // annuel, ex 0.035
-  taf: number;                  // taux assurance frais annuel, ex 0.02
-  maturityYears: number;
-  periodicity: Periodicity;
-  deferralMonths: number;
-  startYear: number;            // 1..N
-}
-
-export interface ExistingCredit {
-  id: string;
-  label: string;
-  remainingCapital: number;
-  rate: number;
-  remainingMonths: number;
-  startMonth?: number;          // mois depuis début projet (défaut 1)
-}
-
-export interface LoanInstallment {
-  monthIndex: number;
-  year: number;
-  openingBalance: number;
-  interest: number;
-  taf: number;
-  principal: number;
-  totalPayment: number;
-  closingBalance: number;
-}
-
-export interface LoanAnnualAggregate {
-  year: number;
-  interest: number;
-  taf: number;
-  principal: number;
-  totalPayment: number;
-  closingBalance: number;
-}
-
-export interface LoanResult {
-  config: { id: string; label: string };
-  installments: LoanInstallment[];
-  annual: LoanAnnualAggregate[];
-  totalInterest: number;
-  totalTAF: number;
-  totalPayment: number;
-}
-
-// Helpers
-export function applyScenario(value: number, scenario: Scenario): number {
-  return value * SCENARIO_COEFS[scenario];
-}
-
-export function getTaxRate(sectorCode: string): number {
-  const c = sectorCode.toLowerCase();
-  if (c === 'aviculture' || c === 'elevage' || c === 'elevage-autre' || c === 'agriculture') {
-    return 0;
-  }
-  if (c === 'agro-industrie' || c === 'transformation-agro' || c === 'anacarde') {
-    return 0.25;
-  }
-  return 0.30;
+export interface FinancialResult {
+  months: string[]
+  income: { ca:number; achats:number; marge_brute:number; ebe:number; re:number; rf:number; rai:number; is:number; rn:number; caf:number }[]
+  balance: { actif_immobilise_net:number; stocks:number; creances:number; tresorerie:number; capitaux_propres:number; dettes_fin:number; dettes_fourn:number; dettes_fisc:number; total_actif:number; total_passif:number }[]
+  treasury: { encaissements:number; decaissements:number; solde:number; cumul:number }[]
+  financing_plan: { besoins:number; ressources:number; solde:number }[]
+  kpis: { van:number; tri:number; delai_recup:number; seuil_rentabilite:number; dscr:number; marge_nette:number }
+  alerts: { type:'error'|'warning'; message:string; month?:string }[]
 }

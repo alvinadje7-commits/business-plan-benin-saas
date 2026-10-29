@@ -1,180 +1,84 @@
-import type {
-  LoanConfig,
-  ExistingCredit,
-  LoanResult,
-  LoanInstallment,
-  LoanAnnualAggregate,
-  Periodicity,
-} from '../types/financial';
-
-const PERIODS_PER_YEAR: Record<Periodicity, number> = {
-  MENSUALITE: 12,
-  TRIMESTRIALITE: 4,
-  SEMESTRIALITE: 2,
-  ANNUITE: 1,
-};
-
-function pmt(rate: number, periods: number, principal: number): number {
-  if (periods <= 0) return 0;
-  if (rate === 0) return principal / periods;
-  return (principal * rate) / (1 - Math.pow(1 + rate, -periods));
-}
-
-function aggregateAnnual(
-  installments: LoanInstallment[],
-  durationYears: number
-): LoanAnnualAggregate[] {
-  const annual: LoanAnnualAggregate[] = [];
-  for (let y = 1; y <= durationYears; y++) {
-    const items = installments.filter((i) => i.year === y);
-    annual.push({
-      year: y,
-      interest: items.reduce((s, i) => s + i.interest, 0),
-      taf: items.reduce((s, i) => s + i.taf, 0),
-      principal: items.reduce((s, i) => s + i.principal, 0),
-      totalPayment: items.reduce((s, i) => s + i.totalPayment, 0),
-      closingBalance: items[items.length - 1]?.closingBalance ?? 0,
-    });
-  }
-  return annual;
-}
-
-function resultFrom(
-  installments: LoanInstallment[],
-  durationYears: number,
-  config: { id: string; label: string }
-): LoanResult {
-  return {
-    config,
-    installments,
-    annual: aggregateAnnual(installments, durationYears),
-    totalInterest: installments.reduce((s, i) => s + i.interest, 0),
-    totalTAF: installments.reduce((s, i) => s + i.taf, 0),
-    totalPayment: installments.reduce((s, i) => s + i.totalPayment, 0),
-  };
-}
+import type { Financement, LoanYear } from '../types/project';
 
 /**
- * Échéancier d'un emprunt.
- * - Intérêts = encours début × taux / périodes par an
- * - TAF = encours début × TAF / périodes par an
- * - Différé (partial) : intérêts + TAF payés, principal = 0
- * - Après différé : annuité constante (PMT) sur le capital initial
+ * Calcule le tableau d'amortissement d'un emprunt sur N années.
+ * - Différé : mois sans rembourser le capital (intérêts payés).
+ * - Amortissement constant du capital sur la période restante.
  */
-export function computeLoanSchedule(
-  config: LoanConfig,
-  durationYears: number
-): LoanResult {
-  const periodsPerYear = PERIODS_PER_YEAR[config.periodicity];
-  const monthsPerPeriod = 12 / periodsPerYear;
-  const periodRate = config.rate / periodsPerYear;
-  const periodTAF = config.taf / periodsPerYear;
+export function computeLoanSchedule(f: Financement): LoanYear[] {
+  const i = f.empruntTaux / 100 / 12;
+  const totalMois = f.empruntDuree * 12;
+  const moisAmort = Math.max(1, totalMois - f.empruntDiffere);
+  const capitalMensuel = f.empruntMontant / moisAmort;
 
-  const totalPeriods = Math.round(config.maturityYears * periodsPerYear);
-  const deferralPeriods = Math.min(
-    Math.floor(config.deferralMonths / monthsPerPeriod),
-    totalPeriods
-  );
-  const amortPeriods = totalPeriods - deferralPeriods;
+  let capitalRestant = f.empruntMontant;
+  const schedule: LoanYear[] = [];
 
-  const annuity = pmt(periodRate + periodTAF, amortPeriods, config.capital);
+  for (let a = 1; a <= f.empruntDuree; a++) {
+    let interets = 0;
+    let amortissement = 0;
+    const capitalDebut = capitalRestant;
 
-  const installments: LoanInstallment[] = [];
-  let balance = config.capital;
+    for (let m = 1; m <= 12; m++) {
+      const moisGlobal = (a - 1) * 12 + m;
+      if (moisGlobal > totalMois) break;
 
-  for (let p = 0; p < totalPeriods; p++) {
-    const openingBalance = balance;
-    const interest = openingBalance * periodRate;
-    const taf = openingBalance * periodTAF;
-    let principal = 0;
+      interets += capitalRestant * i;
 
-    if (p >= deferralPeriods) {
-      principal = annuity - interest - taf;
-      if (principal < 0) principal = 0;
-      if (principal > balance) principal = balance;
+      if (moisGlobal > f.empruntDiffere) {
+        const am = Math.min(capitalMensuel, capitalRestant);
+        amortissement += am;
+        capitalRestant -= am;
+      }
     }
 
-    const totalPayment = interest + taf + principal;
-    balance -= principal;
-
-    const absMonth = p * monthsPerPeriod + 1;
-    const year = Math.min(
-      Math.floor((absMonth - 1) / 12) + 1,
-      durationYears
-    );
-
-    installments.push({
-      monthIndex: absMonth,
-      year,
-      openingBalance,
-      interest,
-      taf,
-      principal,
-      totalPayment,
-      closingBalance: balance,
+    schedule.push({
+      annee: a,
+      capitalDebut,
+      interets,
+      amortissement,
+      annuite: interets + amortissement,
+      capitalFin: capitalRestant,
     });
   }
 
-  return resultFrom(installments, durationYears, {
-    id: config.id,
-    label: config.label,
-  });
+  return schedule;
 }
 
-/** Échéancier d'un crédit existant (encours) avec annuité constante. */
-export function computeExistingCreditSchedule(
-  credit: ExistingCredit,
-  durationYears: number
-): LoanResult {
-  const monthlyRate = credit.rate / 12;
-  const n = credit.remainingMonths;
-  const annuity = pmt(monthlyRate, n, credit.remainingCapital);
-
-  const startMonth = credit.startMonth ?? 1;
-  const installments: LoanInstallment[] = [];
-  let balance = credit.remainingCapital;
-
-  for (let p = 0; p < n; p++) {
-    const interest = balance * monthlyRate;
-    const principal = annuity - interest;
-    balance -= principal;
-    const absMonth = startMonth + p;
-    const year = Math.min(Math.floor((absMonth - 1) / 12) + 1, durationYears);
-
-    installments.push({
-      monthIndex: absMonth,
-      year,
-      openingBalance: balance + principal,
-      interest,
-      taf: 0,
-      principal,
-      totalPayment: annuity,
-      closingBalance: Math.max(0, balance),
-    });
-  }
-
-  return resultFrom(installments, durationYears, {
-    id: credit.id,
-    label: credit.label,
-  });
+export interface DSCRYear {
+  annee: number;
+  caf: number;
+  annuite: number;
+  dscr: number;
+  ok: boolean;
 }
 
 /**
- * DSCR = CAF / Service de la dette (principal + intérêts + TAF)
- * Retourne un tableau année 1..N.
+ * Calcule la CAF et le DSCR pour chaque année de l'emprunt.
+ * CAF = RN + Dotations, avec RN = (RE − Intérêts) × (1 − IS) si positif.
  */
 export function computeDSCR(
-  caf: number[],
-  debtServices: { interest: number[]; taf: number[]; principal: number[] }
-): number[] {
-  const n = caf.length;
-  const out: number[] = [];
-  for (let y = 0; y < n; y++) {
-    const service =
-      (debtServices.interest[y] ?? 0) +
-      (debtServices.taf[y] ?? 0) +
-      (debtServices.principal[y] ?? 0);
-    out.push(service > 0 ? caf[y] / service : 0);
-  }
-  return out;
+  schedule: LoanYear[],
+  resultatExploitation: number,
+  dotations: number,
+  tauxIS = 0.30,
+): DSCRYear[] {
+  return schedule.map((y) => {
+    const rai = resultatExploitation - y.interets;
+    const is = rai > 0 ? rai * tauxIS : 0;
+    const rn = rai - is;
+    const caf = rn + dotations;
+    const dscr = y.annuite > 0 ? caf / y.annuite : 0;
+    return {
+      annee: y.annee,
+      caf,
+      annuite: y.annuite,
+      dscr,
+      ok: dscr >= 1.2,
+    };
+  });
+}
+
+export function fmtFCFA(n: number): string {
+  return Math.round(n).toLocaleString('fr-FR');
 }

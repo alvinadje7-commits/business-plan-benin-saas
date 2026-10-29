@@ -1,106 +1,71 @@
-import type {
-  InvestmentLine,
-  AmortizationResult,
-  AmortizationLineDetail,
-  AmortizationCategoryResult,
-} from '../types/financial';
+import type { Investment, AmortizationLine } from '../types/project';
 
-function computeDetail(
-  line: InvestmentLine,
-  durationYears: number
-): AmortizationLineDetail {
-  const dotations: number[] = new Array(durationYears).fill(0);
-  const balances: number[] = new Array(durationYears).fill(0);
+/**
+ * Calcule le plan d'amortissement d'une immobilisation sur N années.
+ * Renvoie un tableau de dotations (index 0 = Année 1).
+ *
+ * - Linéaire : dotation = coût / durée
+ * - Dégressif (SYSCOHADA) : taux = (1/n) × coefficient, avec bascule
+ *   automatique en linéaire quand l'annuité linéaire devient supérieure.
+ *   Coefficients usuels : 1.5 (3-4 ans), 2.0 (5-6 ans), 2.5 (>6 ans).
+ */
+export function computeInvestmentAmortization(inv: Investment, maxYears = 3): number[] {
+  const result: number[] = [];
+  const n = Math.max(1, Math.floor(inv.duration));
+  let vnc = inv.cost;
 
-  if (line.amortizationYears <= 0) {
-    // Terrain : pas d'amortissement
-    for (let y = 0; y < durationYears; y++) balances[y] = line.amount;
-  } else {
-    const dotation = line.amount / line.amortizationYears;
-    let cumul = 0;
-    for (let y = 0; y < durationYears; y++) {
-      if (y >= line.year && y < line.year + line.amortizationYears) {
-        dotations[y] = dotation;
-        cumul += dotation;
-      }
-      balances[y] = Math.max(0, line.amount - cumul);
+  for (let y = 1; y <= maxYears; y++) {
+    if (y > n || vnc <= 0) {
+      result.push(0);
+      continue;
     }
-  }
 
-  const finalVNC =
-    line.vncOverride ??
-    (line.amortizationYears <= 0
-      ? line.amount
-      : Math.max(0, line.amount - line.amortizationYears * (line.amount / line.amortizationYears)));
-
-  return { line, dotations, balances, vnc: finalVNC };
-}
-
-function emptyCategory(durationYears: number): AmortizationCategoryResult {
-  return {
-    lines: [],
-    totalDotation: new Array(durationYears).fill(0),
-    totalVNC: new Array(durationYears).fill(0),
-    totalVRNI: 0,
-  };
-}
-
-function aggregateCategory(
-  lines: InvestmentLine[],
-  durationYears: number
-): AmortizationCategoryResult {
-  const result = emptyCategory(durationYears);
-  for (const inv of lines) {
-    const detail = computeDetail(inv, durationYears);
-    result.lines.push(detail);
-    for (let y = 0; y < durationYears; y++) {
-      result.totalDotation[y] += detail.dotations[y];
-      result.totalVNC[y] += detail.balances[y];
+    let dotation: number;
+    if (inv.mode === 'Linéaire') {
+      dotation = inv.cost / n;
+    } else {
+      let coeff = 1.5;
+      if (n >= 5 && n <= 6) coeff = 2;
+      else if (n > 6) coeff = 2.5;
+      const rate = (1 / n) * coeff;
+      const remainingYears = n - y + 1;
+      const annuiteDeg = vnc * rate;
+      const annuiteLin = vnc / remainingYears;
+      dotation = Math.max(annuiteDeg, annuiteLin);
     }
-    result.totalVRNI += detail.vnc;
+
+    dotation = Math.min(dotation, vnc);
+    result.push(dotation);
+    vnc -= dotation;
   }
   return result;
 }
 
 /**
- * Calcule l'amortissement en séparant :
- *  - les investissements déjà réalisés (parc existant)
- *  - les investissements à réaliser
- *  - la synthèse (somme des deux)
+ * Calcule le plan complet pour toutes les immobilisations.
+ * @param years  Nombre d'années à afficher (3 par défaut, comme la maquette)
  */
-export function computeInvestmentAmortization(
-  investments: InvestmentLine[],
-  durationYears: number
-): AmortizationResult {
-  const realized = aggregateCategory(
-    investments.filter((i) => i.realizationStatus === 'REALISE'),
-    durationYears
-  );
-  const toRealize = aggregateCategory(
-    investments.filter((i) => i.realizationStatus === 'A_REALISER'),
-    durationYears
-  );
-  const synth = aggregateCategory(investments, durationYears);
-  return { realized, toRealize, synth };
+export function computeAmortizationTable(investments: Investment[], years = 3): AmortizationLine[] {
+  return investments.map((inv) => {
+    const dotations = computeInvestmentAmortization(inv, years);
+    const totalDotations = dotations.reduce((s, d) => s + d, 0);
+    const vnc = inv.cost - totalDotations;
+    return { inv, dotations, totalDotations, vnc };
+  });
 }
 
-// ---------- Helpers backward-compat ----------
-
-export function totalInvestments(investments: InvestmentLine[]): number {
-  return investments.reduce((s, i) => s + i.amount, 0);
+export function totalByYear(lines: AmortizationLine[], yearIndex: number): number {
+  return lines.reduce((s, l) => s + (l.dotations[yearIndex] ?? 0), 0);
 }
 
-export function totalVNC(investments: InvestmentLine[], durationYears: number): number {
-  return investments.reduce(
-    (s, i) => s + computeDetail(i, durationYears).vnc,
-    0
-  );
+export function totalInvestments(investments: Investment[]): number {
+  return investments.reduce((s, i) => s + i.cost, 0);
 }
 
-export function totalByYear(
-  investments: InvestmentLine[],
-  durationYears: number
-): { dotations: number[]; vnc: number[] } {
-  const r = aggregateCategory(investments, durationYears);
-  return { dotations: r.totalDotation, vnc: r.totalVNC };
+export function totalVNC(lines: AmortizationLine[]): number {
+  return lines.reduce((s, l) => s + l.vnc, 0);
+}
+
+export function fmtFCFA(n: number): string {
+  return Math.round(n).toLocaleString('fr-FR');
 }

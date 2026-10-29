@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { computeLoanSchedule, computeExistingCreditSchedule, computeDSCR } from '../financing-engine';
-import type { LoanConfig } from '../../types/financial';
+import { computeLoanSchedule, computeExistingCreditSchedule, computeDSCR } from '../financing-engine-v2';
+import type { LoanConfig } from '../../types/financial-v2';
 
 describe('loan schedule', () => {
   it('mensualité : 10M, 3.5%, 5 ans, sans différé', () => {

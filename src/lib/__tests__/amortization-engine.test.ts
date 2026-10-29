@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { computeInvestmentAmortization } from '../amortization-engine';
-import type { InvestmentLine } from '../../types/financial';
+import { computeInvestmentAmortization } from '../amortization-engine-v2';
+import type { InvestmentLine } from '../../types/financial-v2';
 
 const mk = (o: Partial<InvestmentLine>): InvestmentLine => ({
   id: 'x', designation: 'x', quantity: 1, unitPrice: 0, amount: 0,

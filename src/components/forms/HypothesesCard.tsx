@@ -4,6 +4,7 @@ import { computeSIG, computeBFR, fmtFCFA, fmtFCFAsigned } from '../../lib/sig-en
 import { useProjectStore } from '../../store/projectStore';
 import { getSectorConfig, getSectorGroups } from '../../lib/sectors-config';
 import type { Hypotheses, SIG } from '../../types/project';
+import { ProductionCard } from './ProductionCard';
 
 const MOIS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 
@@ -304,6 +305,11 @@ export function HypothesesCard({ onValidate }: Props) {
             </span>
           </div>
         </div>
+      </FormSection>
+
+      {/* Sprint 4 — aperçu production & opérations */}
+      <FormSection title="Production & opérations (aperçu)" icon="🏭">
+        <ProductionCard />
       </FormSection>
 
       <div className="flex justify-end gap-2 pt-2">
