@@ -39,7 +39,7 @@ const STEPS = [
 export default function App() {
   const [view, setView] = useState<View>('dashboard');
   const [step, setStep] = useState(1);
-  const [isSaving, setIsSaving] = useState(false);
+  const isSaving = useProjectStore((s) => s.isSaving);
 
   const projectName = useProjectStore((s) => s.info.projectName);
   const selectedSector = useProjectStore((s) => s.sectorCode);
@@ -49,35 +49,18 @@ export default function App() {
   const currentSector = SECTORS.find((s) => s.code === selectedSector) || SECTORS[0];
 
   const saveProject = async () => {
-    setIsSaving(true);
     try {
-      const response = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: projectName, sector: selectedSector }),
-      });
-      if (response.status === 404 && import.meta.env.DEV) {
-        const stored = JSON.parse(localStorage.getItem('bpb-projects') || '[]');
-        stored.push({ name: projectName, sector: selectedSector, created_at: new Date().toISOString() });
-        localStorage.setItem('bpb-projects', JSON.stringify(stored));
-        alert('💾 Projet sauvegardé en local (mode dev)');
-        return;
-      }
-      const resData = await response.json();
-      if (!response.ok) throw new Error(resData.message || 'Erreur API');
-      alert('✅ Projet sauvegardé avec succès dans la base de données !');
-    } catch (err) {
-      alert('❌ Erreur: ' + (err as Error).message);
-    } finally {
-      setIsSaving(false);
+      const result = await useProjectStore.getState().saveCurrentProject();
+      alert('✅ Projet sauvegardé (id: ' + result.id.slice(0, 8) + '…)');
+    } catch (e) {
+      alert('❌ Erreur: ' + (e as Error).message);
     }
-  };
+  }
 
-  const handleOpenProject = (name: string, sector: string) => {
-    loadProject(name, sector);
+  const handleOpenProject = () => {
     setStep(1);
     setView('assistant');
-  };
+  }
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] font-sans text-slate-900 flex">

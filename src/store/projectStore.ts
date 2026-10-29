@@ -11,7 +11,9 @@ import {
 } from '../types/project';
 import { SECTORS, getSectorConfig, getDefaultSectorValues } from '../lib/sectors-config';
 
-/** Construit le tableau d'investissements depuis un template de secteur */
+const INITIAL_SECTOR = 'aviculture';
+const INITIAL_VALUES = getDefaultSectorValues(INITIAL_SECTOR);
+
 function buildInvestmentsFromTemplate(sectorCode: string): Investment[] {
   const sector = getSectorConfig(sectorCode);
   return sector.investmentTemplates.map((inv, i) => ({
@@ -20,14 +22,12 @@ function buildInvestmentsFromTemplate(sectorCode: string): Investment[] {
   }));
 }
 
-/** Construit les hypothèses génériques à partir des valeurs sectorielles */
 function buildHypothesesFromSector(
   sectorCode: string,
   values: Record<string, number>,
 ): Hypotheses {
   const sector = getSectorConfig(sectorCode);
   const derived = sector.buildHypotheses(values);
-  // On conserve les hypothèses non sectorielles du défaut (croissance, saisonnalité)
   return {
     ...DEFAULT_HYPOTHESES,
     caMensuel: derived.caMensuel,
@@ -40,6 +40,14 @@ function buildHypothesesFromSector(
   };
 }
 
+export interface ProjectListItem {
+  id: string;
+  name: string;
+  sector: string | null;
+  created_at: string;
+  updated_at?: string;
+}
+
 interface ProjectState {
   info: GeneralInfo;
   hypotheses: Hypotheses;
@@ -48,6 +56,12 @@ interface ProjectState {
   sectorCode: string;
   sectorValues: Record<string, number>;
 
+  currentProjectId: string | null;
+  isSaving: boolean;
+  isLoading: boolean;
+  syncError: string | null;
+  lastSavedAt: string | null;
+
   updateInfo: <K extends keyof GeneralInfo>(k: K, v: GeneralInfo[K]) => void;
   updateHypothese: <K extends keyof Hypotheses>(k: K, v: Hypotheses[K]) => void;
   updateSaisonnalite: (index: number, v: number) => void;
@@ -55,17 +69,45 @@ interface ProjectState {
   addInvestment: (inv: Investment) => void;
   removeInvestment: (id: string) => void;
   updateFinancement: <K extends keyof Financement>(k: K, v: Financement[K]) => void;
-
   applySectorTemplate: (code: string) => void;
   updateSectorValue: (key: string, value: number) => void;
   setSelectedSector: (code: string) => void;
-
   loadProject: (name: string, sector: string) => void;
+
+  saveCurrentProject: () => Promise<{ id: string }>;
+  loadProjectById: (id: string) => Promise<void>;
+  listProjects: () => Promise<ProjectListItem[]>;
+  deleteProjectById: (id: string) => Promise<void>;
+
   reset: () => void;
 }
 
-const INITIAL_SECTOR = 'aviculture';
-const INITIAL_VALUES = getDefaultSectorValues(INITIAL_SECTOR);
+const DEV_KEY = 'bpb-projects-full';
+function devList(): any[] {
+  try { return JSON.parse(localStorage.getItem(DEV_KEY) || '[]'); } catch { return []; }
+}
+function devSave(payload: any, id?: string): any {
+  const list = devList();
+  const now = new Date().toISOString();
+  if (id) {
+    const idx = list.findIndex((p) => p.id === id);
+    if (idx >= 0) {
+      list[idx] = { ...list[idx], ...payload, updated_at: now };
+      localStorage.setItem(DEV_KEY, JSON.stringify(list));
+      return list[idx];
+    }
+  }
+  const created = { id: 'local-' + Date.now(), ...payload, created_at: now, updated_at: now };
+  list.push(created);
+  localStorage.setItem(DEV_KEY, JSON.stringify(list));
+  return created;
+}
+function devGet(id: string): any | undefined {
+  return devList().find((p) => p.id === id);
+}
+function devDelete(id: string): void {
+  localStorage.setItem(DEV_KEY, JSON.stringify(devList().filter((p) => p.id !== id)));
+}
 
 export const useProjectStore = create<ProjectState>()(
   persist(
@@ -77,97 +119,208 @@ export const useProjectStore = create<ProjectState>()(
       sectorCode: INITIAL_SECTOR,
       sectorValues: INITIAL_VALUES,
 
+      currentProjectId: null,
+      isSaving: false,
+      isLoading: false,
+      syncError: null,
+      lastSavedAt: null,
+
       updateInfo: (k, v) => set((s) => ({ info: { ...s.info, [k]: v } })),
+      updateHypothese: (k, v) => set((s) => ({ hypotheses: { ...s.hypotheses, [k]: v } })),
+      updateSaisonnalite: (index, v) => set((s) => {
+        const next = [...s.hypotheses.saisonnalite];
+        next[index] = v;
+        return { hypotheses: { ...s.hypotheses, saisonnalite: next } };
+      }),
+      updateInvestment: (id, patch) => set((s) => ({
+        investments: s.investments.map((i) => (i.id === id ? { ...i, ...patch } : i)),
+      })),
+      addInvestment: (inv) => set((s) => ({ investments: [...s.investments, inv] })),
+      removeInvestment: (id) => set((s) => ({ investments: s.investments.filter((i) => i.id !== id) })),
+      updateFinancement: (k, v) => set((s) => ({ financement: { ...s.financement, [k]: v } })),
 
-      updateHypothese: (k, v) =>
-        set((s) => ({ hypotheses: { ...s.hypotheses, [k]: v } })),
-
-      updateSaisonnalite: (index, v) =>
-        set((s) => {
-          const next = [...s.hypotheses.saisonnalite];
-          next[index] = v;
-          return { hypotheses: { ...s.hypotheses, saisonnalite: next } };
-        }),
-
-      updateInvestment: (id, patch) =>
-        set((s) => ({
-          investments: s.investments.map((i) => (i.id === id ? { ...i, ...patch } : i)),
-        })),
-
-      addInvestment: (inv) =>
-        set((s) => ({ investments: [...s.investments, inv] })),
-
-      removeInvestment: (id) =>
-        set((s) => ({ investments: s.investments.filter((i) => i.id !== id) })),
-
-      updateFinancement: (k, v) =>
-        set((s) => ({ financement: { ...s.financement, [k]: v } })),
-
-      /**
-       * Recharge tout le projet avec les templates du nouveau secteur :
-       * - valeurs sectorielles par défaut
-       * - hypothèses génériques recalculées
-       * - investissements types du secteur
-       * - infos générales : sectorCode mis à jour
-       * ⚠️ Conservation : financement, croissance, saisonnalité, infos promoteur
-       */
       applySectorTemplate: (code) => {
         const values = getDefaultSectorValues(code);
-        const newHypotheses = buildHypothesesFromSector(code, values);
-        const newInvestments = buildInvestmentsFromTemplate(code);
-
-        // Conserver la saisonnalité et les taux de croissance déjà saisis
+        const newHyp = buildHypothesesFromSector(code, values);
+        const newInv = buildInvestmentsFromTemplate(code);
         const prev = get().hypotheses;
-        newHypotheses.saisonnalite = prev.saisonnalite;
-        newHypotheses.croissanceA2 = prev.croissanceA2;
-        newHypotheses.croissanceA3 = prev.croissanceA3;
-
+        newHyp.saisonnalite = prev.saisonnalite;
+        newHyp.croissanceA2 = prev.croissanceA2;
+        newHyp.croissanceA3 = prev.croissanceA3;
         set((s) => ({
           sectorCode: code,
           sectorValues: values,
-          hypotheses: newHypotheses,
-          investments: newInvestments,
+          hypotheses: newHyp,
+          investments: newInv,
           info: { ...s.info, sectorCode: code },
         }));
       },
 
-      /**
-       * Met à jour un champ sectoriel et recalcule les hypothèses dérivées.
-       * Appelée à chaque saisie dans la Carte 3 (section sectorielle).
-       */
-      updateSectorValue: (key, value) =>
-        set((s) => {
-          const newValues = { ...s.sectorValues, [key]: value };
-          const newHypotheses = buildHypothesesFromSector(s.sectorCode, newValues);
-          // Conserver la saisonnalité et les taux de croissance
-          newHypotheses.saisonnalite = s.hypotheses.saisonnalite;
-          newHypotheses.croissanceA2 = s.hypotheses.croissanceA2;
-          newHypotheses.croissanceA3 = s.hypotheses.croissanceA3;
-          return { sectorValues: newValues, hypotheses: newHypotheses };
-        }),
+      updateSectorValue: (key, value) => set((s) => {
+        const newValues = { ...s.sectorValues, [key]: value };
+        const newHyp = buildHypothesesFromSector(s.sectorCode, newValues);
+        newHyp.saisonnalite = s.hypotheses.saisonnalite;
+        newHyp.croissanceA2 = s.hypotheses.croissanceA2;
+        newHyp.croissanceA3 = s.hypotheses.croissanceA3;
+        return { sectorValues: newValues, hypotheses: newHyp };
+      }),
 
       setSelectedSector: (code) => get().applySectorTemplate(code),
 
-      loadProject: (name, sector) =>
-        set((s) => ({
-          info: { ...s.info, projectName: name, sectorCode: sector },
-          sectorCode: sector,
-        })),
+      loadProject: (name, sector) => set((s) => ({
+        info: { ...s.info, projectName: name, sectorCode: sector },
+        sectorCode: sector,
+      })),
 
-      reset: () =>
-        set({
-          info: DEFAULT_GENERAL_INFO,
-          hypotheses: buildHypothesesFromSector(INITIAL_SECTOR, INITIAL_VALUES),
-          investments: buildInvestmentsFromTemplate(INITIAL_SECTOR),
-          financement: DEFAULT_FINANCEMENT,
-          sectorCode: INITIAL_SECTOR,
-          sectorValues: INITIAL_VALUES,
-        }),
+      saveCurrentProject: async () => {
+        const state = get();
+        set({ isSaving: true, syncError: null });
+        try {
+          const payload = {
+            name: state.info.projectName || 'Projet sans nom',
+            sector: state.sectorCode,
+            data: {
+              info: state.info,
+              hypotheses: state.hypotheses,
+              investments: state.investments,
+              financement: state.financement,
+              sectorCode: state.sectorCode,
+              sectorValues: state.sectorValues,
+            },
+          };
+
+          // ── Mode DEV : localStorage direct (pas de Cloudflare Function en local)
+          if (import.meta.env.DEV) {
+            const saved = devSave(payload, state.currentProjectId || undefined);
+            set({ currentProjectId: saved.id, lastSavedAt: saved.updated_at, isSaving: false });
+            return { id: saved.id };
+          }
+
+          // ── Mode PROD : API Cloudflare + Neon
+          const isUpdate = !!state.currentProjectId;
+          const url = isUpdate ? `/api/projects/${state.currentProjectId}` : '/api/projects';
+          const method = isUpdate ? 'PATCH' : 'POST';
+          const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+          if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody.error || errBody.detail || 'Erreur API ' + res.status);
+          }
+
+          const result = await res.json();
+          const savedId = result.id || state.currentProjectId;
+          set({ currentProjectId: savedId, lastSavedAt: new Date().toISOString(), isSaving: false });
+          return { id: savedId };
+        } catch (e) {
+          set({ syncError: (e as Error).message, isSaving: false });
+          throw e;
+        }
+      },
+
+      loadProjectById: async (id) => {
+        set({ isLoading: true, syncError: null });
+        try {
+          let proj: any;
+
+          // ── Mode DEV
+          if (import.meta.env.DEV) {
+            proj = devGet(id);
+            if (!proj) throw new Error('Projet introuvable (local)');
+          } else {
+            const res = await fetch(`/api/projects/${id}`);
+            if (!res.ok) throw new Error('Erreur chargement (HTTP ' + res.status + ')');
+            proj = await res.json();
+          }
+          const d = proj.data || {};
+          set((s) => ({
+            currentProjectId: proj.id,
+            info: d.info || { ...s.info, projectName: proj.name },
+            hypotheses: d.hypotheses || s.hypotheses,
+            investments: d.investments || s.investments,
+            financement: d.financement || s.financement,
+            sectorCode: d.sectorCode || proj.sector || s.sectorCode,
+            sectorValues: d.sectorValues || s.sectorValues,
+            isLoading: false,
+            lastSavedAt: proj.updated_at || proj.created_at || null,
+          }));
+        } catch (e) {
+          set({ syncError: (e as Error).message, isLoading: false });
+          throw e;
+        }
+      },
+
+      listProjects: async () => {
+        set({ isLoading: true, syncError: null });
+        try {
+          // ── Mode DEV
+          if (import.meta.env.DEV) {
+            const list = devList().sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+            set({ isLoading: false });
+            return list;
+          }
+
+          // ── Mode PROD
+          const res = await fetch('/api/projects');
+          if (!res.ok) throw new Error('Erreur liste (HTTP ' + res.status + ')');
+          const data = await res.json();
+          set({ isLoading: false });
+          return Array.isArray(data) ? data : [];
+        } catch (e) {
+          set({ syncError: (e as Error).message, isLoading: false });
+          throw e;
+        }
+      },
+
+      deleteProjectById: async (id) => {
+        try {
+          // ── Mode DEV
+          if (import.meta.env.DEV) {
+            devDelete(id);
+          } else {
+            const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Erreur suppression (HTTP ' + res.status + ')');
+          }
+          if (get().currentProjectId === id) {
+            set({ currentProjectId: null, lastSavedAt: null });
+          }
+        } catch (e) {
+          set({ syncError: (e as Error).message });
+          throw e;
+        }
+      },
+
+      reset: () => set({
+        currentProjectId: null,
+        info: DEFAULT_GENERAL_INFO,
+        hypotheses: buildHypothesesFromSector(INITIAL_SECTOR, INITIAL_VALUES),
+        investments: buildInvestmentsFromTemplate(INITIAL_SECTOR),
+        financement: DEFAULT_FINANCEMENT,
+        sectorCode: INITIAL_SECTOR,
+        sectorValues: INITIAL_VALUES,
+        lastSavedAt: null,
+        syncError: null,
+      }),
     }),
-    { name: 'bpb-project-store', version: 2 }
+    {
+      name: 'bpb-project-store',
+      version: 3,
+      partialize: (s) => ({
+        info: s.info,
+        hypotheses: s.hypotheses,
+        investments: s.investments,
+        financement: s.financement,
+        sectorCode: s.sectorCode,
+        sectorValues: s.sectorValues,
+        currentProjectId: s.currentProjectId,
+        lastSavedAt: s.lastSavedAt,
+      }),
+    }
   )
 );
 
-// Exporter les helpers pour usage externe
 export { buildHypothesesFromSector, buildInvestmentsFromTemplate };
 export { SECTORS };
