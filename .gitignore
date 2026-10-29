@@ -41,3 +41,8 @@ workers/dist/
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
+
+# Backups locaux
+*.bak
+*.bak2
+*.bak3

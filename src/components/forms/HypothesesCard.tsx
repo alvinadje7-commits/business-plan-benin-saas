@@ -5,6 +5,7 @@ import { useProjectStore } from '../../store/projectStore';
 import { getSectorConfig, getSectorGroups } from '../../lib/sectors-config';
 import type { Hypotheses, SIG } from '../../types/project';
 import { ProductionCard } from './ProductionCard';
+import { ChargesCard } from './ChargesCard';
 
 const MOIS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 
@@ -311,6 +312,9 @@ export function HypothesesCard({ onValidate }: Props) {
       <FormSection title="Production & opérations (aperçu)" icon="🏭">
         <ProductionCard />
       </FormSection>
+
+      {/* Sprint 5 — charges d'exploitation */}
+      <ChargesCard />
 
       <div className="flex justify-end gap-2 pt-2">
         <button type="button" onClick={handleValidate}
