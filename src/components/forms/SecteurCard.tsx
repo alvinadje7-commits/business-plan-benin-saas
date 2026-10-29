@@ -1,156 +1,182 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { SECTORS } from '../../lib/mockup-data';
-import { computeSectorSynthesis, fmtFCFA } from '../../lib/sector-engine';
+import { useProjectStore } from '../../store/projectStore';
 import { FormSection, FormField, inputClass } from './FormSection';
-import type { SectorSynthesis } from '../../types/project';
 
 interface Props {
-  initialSectorCode?: string;
-  onSelect?: (code: string, synthesis: SectorSynthesis) => void;
+  onSelect?: (code: string) => void;
 }
 
-export function SecteurCard({ initialSectorCode = 'aviculture', onSelect }: Props) {
-  const [selectedCode, setSelectedCode] = useState(initialSectorCode);
-  const sector = SECTORS.find((s) => s.code === selectedCode) || SECTORS[0];
+export function SecteurCard({ onSelect }: Props) {
+  const sectorCode = useProjectStore((s) => s.sectorCode);
+  const sectorValues = useProjectStore((s) => s.sectorValues);
+  const applySectorTemplate = useProjectStore((s) => s.applySectorTemplate);
+  const updateSectorValue = useProjectStore((s) => s.updateSectorValue);
 
-  // Valeurs des champs dynamiques (initialisées aux defaults)
-  const [values, setValues] = useState<Record<string, number>>(() =>
-    Object.fromEntries(sector.fields.map((f) => [f.key, f.default])),
-  );
+  const [preview, setPreview] = useState(sectorCode);
+  const sector = SECTORS.find((s) => s.code === preview) || SECTORS[0];
+  const isApplied = preview === sectorCode;
 
-  // Quand on change de secteur → réinitialiser les valeurs aux defaults
-  useEffect(() => {
-    const s = SECTORS.find((x) => x.code === selectedCode);
-    if (s) setValues(Object.fromEntries(s.fields.map((f) => [f.key, f.default])));
-  }, [selectedCode]);
-
-  const synthesis = computeSectorSynthesis(selectedCode, values);
-
-  const update = (key: string, value: number) => {
-    setValues((prev) => ({ ...prev, [key]: value }));
+  const handleApply = () => {
+    if (isApplied) {
+      // Déjà appliqué → on passe juste à l'étape suivante
+      if (onSelect) onSelect(sectorCode);
+      return;
+    }
+    if (
+      confirm(
+        `Appliquer le secteur "${sector.name}" ?\n\n` +
+          `⚠️ Les hypothèses, charges et investissements seront remplacés par les valeurs du secteur.\n` +
+          `Le financement et les infos promoteur sont conservés.`,
+      )
+    ) {
+      applySectorTemplate(preview);
+      if (onSelect) onSelect(preview);
+    }
   };
 
-  const handleNext = () => {
-    if (onSelect) onSelect(selectedCode, synthesis);
-    else alert(`✅ Secteur "${sector.name}" sélectionné\nCA annuel estimé : ${fmtFCFA(synthesis.ca)} FCFA`);
-  };
-
-  const formatUnit = (unit?: string) => {
-    if (!unit) return '';
-    return unit;
-  };
+  // Prévisualisation des KPIs sectoriels (à partir des valeurs actuelles si preview === sectorCode, sinon defaults)
+  const previewValues =
+    preview === sectorCode
+      ? sectorValues
+      : Object.fromEntries(sector.fields.map((f) => [f.key, f.default]));
+  const kpis = sector.kpisSpecifiques(previewValues);
 
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-semibold text-slate-900">🏭 Secteur d'activité</h2>
         <p className="text-sm text-slate-500 mt-1">
-          12 filières Bénin / Afrique de l'Ouest — Champs et formules auto-adaptés
+          13 filières Bénin / Afrique de l'Ouest — Le choix du secteur reconfigure tout le business plan
         </p>
       </div>
 
-      {/* Grille des 12 secteurs */}
+      {/* Grille des 13 secteurs */}
       <FormSection title="1. Choisir un secteur" icon="🎯">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {SECTORS.map((s) => {
-            const selected = s.code === selectedCode;
+            const selected = s.code === preview;
+            const applied = s.code === sectorCode;
             return (
               <button
                 key={s.code}
                 type="button"
-                onClick={() => setSelectedCode(s.code)}
-                className={`p-4 rounded-xl border-2 text-left transition ${
+                onClick={() => setPreview(s.code)}
+                className={`relative p-3 rounded-xl border-2 text-left transition ${
                   selected
                     ? 'border-[#0F172A] bg-[#0F172A] text-white shadow-lg'
                     : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'
                 }`}
               >
-                <div className="flex justify-between items-start">
+                {applied && (
+                  <span className="absolute top-1.5 right-1.5 text-[9px] bg-emerald-500 px-1.5 py-0.5 rounded-full text-white font-bold">
+                    ACTIF
+                  </span>
+                )}
+                <div className="flex items-center gap-2">
                   <div
-                    className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg ${
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0 ${
                       selected ? 'bg-white' : 'bg-slate-100'
                     }`}
                   >
                     {s.icon}
                   </div>
-                  {selected && (
-                    <span className="text-[10px] bg-emerald-500 px-2 py-0.5 rounded-full text-white font-bold">
-                      ✓
-                    </span>
-                  )}
-                </div>
-                <div className="mt-3 font-semibold text-sm">{s.name}</div>
-                <div className={`text-[11px] mt-1 ${selected ? 'text-white/70' : 'text-slate-500'}`}>
-                  {s.description}
+                  <div className="min-w-0">
+                    <div className="font-semibold text-xs truncate">{s.name}</div>
+                    <div className={`text-[10px] truncate ${selected ? 'text-white/70' : 'text-slate-500'}`}>
+                      {s.description}
+                    </div>
+                  </div>
                 </div>
               </button>
             );
           })}
         </div>
-      </FormSection>
 
-      {/* Champs dynamiques */}
-      <FormSection title={`2. Champs — ${sector.name}`} icon="⚙️">
-        {sector.fields.length === 0 ? (
-          <p className="text-sm text-slate-500 py-4 text-center">
-            Aucun champ défini pour ce secteur (à compléter).
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {sector.fields.map((field) => (
-              <FormField key={field.key} label={field.label} unit={formatUnit(field.unit)}>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={values[field.key] ?? field.default}
-                    onChange={(e) => update(field.key, Number(e.target.value))}
-                    className={inputClass}
-                  />
-                  {field.unit && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
-                      {field.unit}
-                    </span>
-                  )}
-                </div>
-              </FormField>
-            ))}
+        {!isApplied && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+            ⚠️ Le secteur <b>{sector.name}</b> n'est pas encore appliqué. Clique sur
+            "Appliquer ce secteur" ci-dessous pour recharger les hypothèses, charges et
+            investissements associés.
           </div>
         )}
       </FormSection>
 
-      {/* Synthèse automatique */}
-      <FormSection title="3. Synthèse automatique" icon="📊">
+      {/* Aperçu des KPIs sectoriels */}
+      <FormSection title={`2. KPIs sectoriels — ${sector.name}`} icon="📊">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-            <div className="text-[11px] uppercase tracking-wide text-emerald-700 font-medium">CA annuel</div>
-            <div className="mt-1 text-lg font-bold text-emerald-900">{fmtFCFA(synthesis.ca)}</div>
-            <div className="text-[11px] text-emerald-700">FCFA</div>
-          </div>
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-            <div className="text-[11px] uppercase tracking-wide text-blue-700 font-medium">Marge brute</div>
-            <div className="mt-1 text-lg font-bold text-blue-900">{synthesis.marge.toFixed(1)} %</div>
-            <div className="text-[11px] text-blue-700">estimée</div>
-          </div>
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <div className="text-[11px] uppercase tracking-wide text-amber-700 font-medium">BFR initial</div>
-            <div className="mt-1 text-lg font-bold text-amber-900">{fmtFCFA(synthesis.bfr)}</div>
-            <div className="text-[11px] text-amber-700">FCFA</div>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-[11px] uppercase tracking-wide text-slate-700 font-medium">Emplois</div>
-            <div className="mt-1 text-lg font-bold text-slate-900">{synthesis.jobs}</div>
-            <div className="text-[11px] text-slate-600">directs</div>
-          </div>
+          {kpis.map((kpi, i) => (
+            <div
+              key={i}
+              className={`rounded-xl border p-3 ${
+                kpi.color === 'accent'
+                  ? 'border-emerald-200 bg-emerald-50'
+                  : kpi.color === 'danger'
+                  ? 'border-red-200 bg-red-50'
+                  : kpi.color === 'amber'
+                  ? 'border-amber-200 bg-amber-50'
+                  : kpi.color === 'blue'
+                  ? 'border-blue-200 bg-blue-50'
+                  : 'border-slate-200 bg-slate-50'
+              }`}
+            >
+              <div className="text-[10px] uppercase tracking-wide text-slate-600 font-medium">
+                {kpi.label}
+              </div>
+              <div className="mt-1 text-lg font-bold text-slate-900">{kpi.value}</div>
+              {kpi.hint && <div className="text-[10px] text-slate-500 mt-0.5">{kpi.hint}</div>}
+            </div>
+          ))}
         </div>
       </FormSection>
 
+      {/* Champs sectoriels */}
+      <FormSection title={`3. Champs — ${sector.name}`} icon="⚙️">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {sector.fields.map((field) => (
+            <FormField key={field.key} label={field.label} unit={field.unit}>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={previewValues[field.key] ?? field.default}
+                  onChange={(e) => {
+                    if (preview !== sectorCode) {
+                      // Modifier les valeurs en preview n'a pas d'effet tant qu'on n'a pas appliqué
+                      return;
+                    }
+                    updateSectorValue(field.key, Number(e.target.value));
+                  }}
+                  disabled={preview !== sectorCode}
+                  className={`${inputClass} ${preview !== sectorCode ? 'opacity-60 cursor-not-allowed' : ''}`}
+                />
+                {field.unit && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                    {field.unit}
+                  </span>
+                )}
+              </div>
+            </FormField>
+          ))}
+        </div>
+        {preview !== sectorCode && (
+          <p className="text-[11px] text-slate-500">
+            ℹ️ Clique sur "Appliquer ce secteur" pour pouvoir modifier ces valeurs.
+          </p>
+        )}
+      </FormSection>
+
+      {/* Actions */}
       <div className="flex justify-end gap-2 pt-2">
         <button
           type="button"
-          onClick={handleNext}
-          className="px-4 py-2 rounded-xl bg-[#0F172A] text-white text-sm font-medium hover:bg-black"
+          onClick={handleApply}
+          className={`px-4 py-2 rounded-xl text-white text-sm font-medium ${
+            isApplied
+              ? 'bg-[#0F172A] hover:bg-black'
+              : 'bg-[#10B981] hover:bg-emerald-600'
+          }`}
         >
-          Valider le secteur →
+          {isApplied ? 'Valider ce secteur →' : '✅ Appliquer ce secteur →'}
         </button>
       </div>
     </div>

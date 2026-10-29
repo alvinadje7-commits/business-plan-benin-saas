@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { KpiCard } from "../ui/KpiCard";
 import { useProjectStore } from "../../store/projectStore";
+import { getSectorConfig } from '../../lib/sectors-config';
 import { fmtFCFA, fmtSigned, computeFinancialResult } from '../../lib/financial-statements-engine';
 import type { Hypotheses, Investment } from '../../types/project';
 
@@ -330,6 +331,8 @@ function TresoTab({ tresorerie }: { tresorerie: any[] }) {
 
 /* ============ NOTES ============ */
 function NotesTab({ hypotheses, investments }: { hypotheses: Hypotheses; investments: Investment[] }) {
+  const sectorCode = useProjectStore((s) => s.sectorCode);
+  const sector = getSectorConfig(sectorCode);
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -361,7 +364,21 @@ function NotesTab({ hypotheses, investments }: { hypotheses: Hypotheses; investm
           </div>
 
           <div>
-            <h4 className="font-semibold text-slate-900 mb-1">3. Hypothèses clés</h4>
+              <h4 className="font-semibold text-slate-900 mb-1">2bis. Rubriques sectorielles ({sector.name})</h4>
+              <p className="text-slate-600 mb-1.5">
+                Les charges du compte de résultat sont ventilées selon les rubriques du secteur :
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {sector.chargeRubriques.map((r) => (
+                  <span key={r} className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                    {r}
+                  </span>
+                ))}
+              </div>
+          </div>
+
+          <div>
+              <h4 className="font-semibold text-slate-900 mb-1">3. Hypothèses clés</h4>
             <ul className="list-disc list-inside text-slate-600 space-y-0.5">
               <li>CA mensuel cible : <b>{fmtFCFA(hypotheses.caMensuel)} FCFA</b></li>
               <li>Croissance A2 / A3 : <b>{hypotheses.croissanceA2}%</b> / <b>{hypotheses.croissanceA3}%</b></li>

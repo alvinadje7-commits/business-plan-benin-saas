@@ -42,7 +42,7 @@ export default function App() {
   const [isSaving, setIsSaving] = useState(false);
 
   const projectName = useProjectStore((s) => s.info.projectName);
-  const selectedSector = useProjectStore((s) => s.selectedSector);
+  const selectedSector = useProjectStore((s) => s.sectorCode);
   const setSelectedSector = useProjectStore((s) => s.setSelectedSector);
   const loadProject = useProjectStore((s) => s.loadProject);
 
@@ -229,7 +229,6 @@ export default function App() {
               {step === 1 && <InfosGenerales />}
               {step === 2 && (
                 <SecteurCard
-                  initialSectorCode={selectedSector}
                   onSelect={(code) => {
                     setSelectedSector(code);
                     setStep(3);
