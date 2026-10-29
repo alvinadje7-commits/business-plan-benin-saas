@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { KpiCard } from './ui/KpiCard';
+import { RentabiliteDetailCard } from './RentabiliteDetailCard';
 import { CaChart } from './charts/CaChart';
 import { TresorerieChart } from './charts/TresorerieChart';
 import { ChargesChart } from './charts/ChargesChart';
@@ -8,6 +9,18 @@ import { computeFinancialResult, fmtFCFA } from '../lib/financial-statements-eng
 import { useProjectStore } from '../store/projectStore';
 import { getSectorConfig } from '../lib/sectors-config';
 
+function readSettings(): { tauxActualisation: number; dureeEtude: number } {
+  try {
+    const raw = JSON.parse(localStorage.getItem('bpb-settings') || '{}');
+    return {
+      tauxActualisation: Number(raw.tauxActualisation ?? 6),
+      dureeEtude: Number(raw.dureeEtude ?? 7),
+    };
+  } catch {
+    return { tauxActualisation: 6, dureeEtude: 7 };
+  }
+}
+
 export function Dashboard() {
   const hypotheses = useProjectStore((s) => s.hypotheses);
   const investments = useProjectStore((s) => s.investments);
@@ -15,16 +28,19 @@ export function Dashboard() {
   const sectorCode = useProjectStore((s) => s.sectorCode);
   const sectorValues = useProjectStore((s) => s.sectorValues);
 
+  const settings = readSettings();
+  const tauxPct = settings.tauxActualisation;
+
   const { kpis } = useMemo(
-    () => computeFinancialResult(hypotheses, investments, financement),
-    [hypotheses, investments, financement],
+    () => computeFinancialResult(
+      hypotheses, investments, financement, sectorCode,
+      settings.tauxActualisation / 100, settings.dureeEtude,
+    ),
+    [hypotheses, investments, financement, sectorCode, settings.tauxActualisation, settings.dureeEtude],
   );
 
   const sector = getSectorConfig(sectorCode);
-  const sectorKpis = useMemo(
-    () => sector.kpisSpecifiques(sectorValues),
-    [sector, sectorValues],
-  );
+  const sectorKpis = useMemo(() => sector.kpisSpecifiques(sectorValues), [sector, sectorValues]);
 
   return (
     <div className="space-y-3">
@@ -40,14 +56,11 @@ export function Dashboard() {
         </span>
       </div>
 
-      {/* KPIs bancaires */}
       <div>
-        <h3 className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5">
-          Indicateurs bancaires
-        </h3>
+        <h3 className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5">Indicateurs bancaires</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-          <KpiCard label="VAN (12%)" value={fmtFCFA(kpis.van)} unit="FCFA" hint={kpis.van > 0 ? 'Rentable' : 'Non rentable'} color={kpis.van > 0 ? 'accent' : 'danger'} />
-          <KpiCard label="TRI" value={kpis.tri.toFixed(1)} unit="%" hint="Rentabilité" color={kpis.tri > 12 ? 'accent' : 'primary'} />
+          <KpiCard label={`VAN (${tauxPct}%)`} value={fmtFCFA(kpis.van)} unit="FCFA" hint={kpis.van > 0 ? 'Rentable' : 'Non rentable'} color={kpis.van > 0 ? 'accent' : 'danger'} />
+          <KpiCard label="TRI" value={kpis.tri.toFixed(1)} unit="%" hint="Rentabilité" color={kpis.tri > tauxPct ? 'accent' : 'primary'} />
           <KpiCard label="Délai récup." value={String(kpis.delaiRecupMois)} unit="mois" hint={`${(kpis.delaiRecupMois / 12).toFixed(1)} ans`} color="primary" />
           <KpiCard label="Seuil rentab." value={fmtFCFA(kpis.seuilRentabilite)} unit="FCFA" hint="CA min" color="primary" />
           <KpiCard label="DSCR" value={kpis.dscr.toFixed(2)} hint={kpis.dscr >= 1.2 ? 'OK' : 'À surveiller'} color={kpis.dscr >= 1.2 ? 'accent' : 'danger'} />
@@ -55,36 +68,27 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* KPIs sectoriels */}
+      <RentabiliteDetailCard kpis={kpis} />
+
       <div>
-        <h3 className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5">
-          Indicateurs {sector.name}
-        </h3>
+        <h3 className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5">Indicateurs {sector.name}</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {sectorKpis.map((kpi, i) => (
-            <div
-              key={i}
-              className={`rounded-lg border p-2.5 ${
-                kpi.color === 'accent' ? 'border-emerald-200 bg-emerald-50'
-                : kpi.color === 'danger' ? 'border-red-200 bg-red-50'
-                : kpi.color === 'amber' ? 'border-amber-200 bg-amber-50'
-                : kpi.color === 'blue' ? 'border-blue-200 bg-blue-50'
-                : 'border-slate-200 bg-white'
-              }`}
-            >
-              <div className="text-[10px] uppercase tracking-wide text-slate-600 font-medium truncate">
-                {kpi.label}
-              </div>
-              <div className="mt-1 text-lg font-bold text-slate-900 leading-tight truncate">
-                {kpi.value}
-              </div>
+            <div key={i} className={`rounded-lg border p-2.5 ${
+              kpi.color === 'accent' ? 'border-emerald-200 bg-emerald-50'
+              : kpi.color === 'danger' ? 'border-red-200 bg-red-50'
+              : kpi.color === 'amber' ? 'border-amber-200 bg-amber-50'
+              : kpi.color === 'blue' ? 'border-blue-200 bg-blue-50'
+              : 'border-slate-200 bg-white'
+            }`}>
+              <div className="text-[10px] uppercase tracking-wide text-slate-600 font-medium truncate">{kpi.label}</div>
+              <div className="mt-1 text-lg font-bold text-slate-900 leading-tight truncate">{kpi.value}</div>
               {kpi.hint && <div className="text-[10px] text-slate-500 mt-0.5 truncate">{kpi.hint}</div>}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Graphiques */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <CaChart />
         <TresorerieChart />

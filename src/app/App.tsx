@@ -13,10 +13,12 @@ import { ScenariosView } from '../components/views/ScenariosView';
 import { ExportsView } from '../components/views/ExportsView';
 import { PartageView } from '../components/views/PartageView';
 import { ParametresView } from '../components/views/ParametresView';
+import { ObjectifTRIView } from '../components/views/ObjectifTRIView';
 
-type View = 'dashboard' | 'projects' | 'assistant' | 'financial' | 'scenarios' | 'exports' | 'share' | 'settings';
+type View = 'objectif' | 'dashboard' | 'projects' | 'assistant' | 'financial' | 'scenarios' | 'exports' | 'share' | 'settings';
 
 const NAV_ITEMS: { id: View; label: string; icon: string; count?: number }[] = [
+  { id: 'objectif', label: 'Objectif TRI', icon: '🎯' },
   { id: 'dashboard', label: 'Tableau de bord', icon: '📊' },
   { id: 'projects', label: 'Projets', icon: '📁', count: 12 },
   { id: 'assistant', label: 'Assistant Business Plan', icon: '🧭' },
@@ -199,6 +201,7 @@ export default function App() {
 
         {/* CONTENT */}
         <main className="flex-1 p-3 lg:p-5">
+          {view === 'objectif' && <ObjectifTRIView />}
           {view === 'dashboard' && <Dashboard />}
           {view === 'projects' && <ProjetsView onOpenProject={handleOpenProject} />}
           {view === 'scenarios' && <ScenariosView />}

@@ -300,6 +300,25 @@ export interface KPIs {
   dscr: number;
   margeNette: number;
   seuilRentabilite: number;
+
+  // --- Détails de calcul (transparence) ---
+  tauxActualisation: number;
+  horizonAnnees: number;
+  investInit: number;
+  vnci: number;
+  cfadsA1: number;
+  annuiteA1: number;
+  tauxISApplique: number;
+
+  // --- Séries annuelles (index 0 = année 1) ---
+  ebe: number[];
+  is: number[];
+  deltaBfr: number[];
+  vnciYear: number[];
+  fcf: number[];
+  fcfActualises: number[];
+  fcfCumules: number[];
+  fcfActCumules: number[];
 }
 
 export interface FinancialResult {

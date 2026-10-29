@@ -8,6 +8,8 @@ interface Settings {
   tauxIS: number;
   tauxTVA: number;
   tauxCNSS: number;
+  tauxActualisation: number;
+  dureeEtude: number;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -18,6 +20,8 @@ const DEFAULT_SETTINGS: Settings = {
   tauxIS: 30,
   tauxTVA: 18,
   tauxCNSS: 20,
+  tauxActualisation: 6,
+  dureeEtude: 7,
 };
 
 export function ParametresView() {
@@ -142,6 +146,32 @@ export function ParametresView() {
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-slate-900">Paramètres de rentabilité (VAN, TRI, DRCI)</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-medium text-slate-700 block mb-1">Taux d'actualisation</label>
+            <div className="relative">
+              <input type="number" step="0.5" min={0} max={50} value={settings.tauxActualisation}
+                onChange={(e) => update('tauxActualisation', Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1">Utilisé pour VAN et TRI. Défaut SYSCOHADA : 6 %.</p>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-700 block mb-1">Durée de l'étude</label>
+            <div className="relative">
+              <input type="number" min={1} max={15} value={settings.dureeEtude}
+                onChange={(e) => update('dureeEtude', Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">ans</span>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1">Horizon de projection (7 ans = 84 mois par défaut).</p>
           </div>
         </div>
       </div>
