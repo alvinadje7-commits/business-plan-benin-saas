@@ -1,3 +1,5 @@
+import { neon } from '@neondatabase/serverless';
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -7,41 +9,48 @@ function json(data, status = 200) {
 
 export async function onRequest(context) {
   const { request, env } = context;
-  const base = env.VITE_NEON_DATA_API_URL;
-  if (!base) return json({ error: 'VITE_NEON_DATA_API_URL manquant' }, 500);
+  const databaseUrl = env.DATABASE_URL;
+  
+  if (!databaseUrl) {
+    return json({ error: 'DATABASE_URL manquante dans les variables d\'environnement' }, 500);
+  }
+
+  const sql = neon(databaseUrl);
 
   try {
     if (request.method === 'POST') {
-      const body = await request.json();
-      const res = await fetch(`${base}/projects`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-        body: JSON.stringify({
-          name: body.name || 'Sans titre',
-          sector: body.sector || null,
-          data: body.data || {},
-        }),
-      });
-      if (!res.ok) {
-        const errText = await res.text();
-        return json({ error: 'Neon POST failed', detail: errText, status: res.status }, res.status);
+      let body;
+      try {
+        body = await request.json();
+      } catch (e) {
+        return json({ error: 'Body JSON invalide', detail: String(e) }, 400);
       }
-      const raw = await res.text();
-      const result = raw ? JSON.parse(raw) : null;
-      return json(Array.isArray(result) ? result[0] : result, 201);
+
+      const name = body.name || 'Sans titre';
+      const sector = body.sector || null;
+      const data = body.data || {};
+
+      // Requête SQL directe (sécurisée contre les injections)
+      const result = await sql`
+        INSERT INTO projects (name, sector, data)
+        VALUES (${name}, ${sector}, ${JSON.stringify(data)}::jsonb)
+        RETURNING *
+      `;
+      return json(result[0], 201);
     }
 
     if (request.method === 'GET') {
-      const res = await fetch(`${base}/projects?select=id,name,sector,created_at,updated_at&order=created_at.desc`);
-      if (!res.ok) {
-        const errText = await res.text();
-        return json({ error: 'Neon GET failed', detail: errText, status: res.status }, res.status);
-      }
-      return json(await res.json());
+      const result = await sql`
+        SELECT id, name, sector, created_at, updated_at
+        FROM projects
+        ORDER BY created_at DESC
+      `;
+      return json(result);
     }
 
     return json({ error: 'Méthode non supportée', method: request.method }, 405);
   } catch (e) {
-    return json({ error: 'Erreur proxy', detail: String(e) }, 500);
+    console.error('[DB error]', e);
+    return json({ error: 'Erreur base de données', detail: String(e) }, 500);
   }
 }
