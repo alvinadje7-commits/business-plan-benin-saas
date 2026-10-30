@@ -29,6 +29,26 @@ export interface SectorKPI {
   color?: 'primary' | 'accent' | 'amber' | 'blue' | 'danger';
 }
 
+export interface SectorVariant {
+  key: string;
+  label: string;
+  icon: string;
+  description: string;
+  fields: SectorField[];
+  investmentTemplates: Omit<Investment, 'id'>[];
+  chargeRubriques: string[];
+  buildHypotheses: (values: Record<string, number>) => {
+    caMensuel: number;
+    pctAchats: number;
+    pctChargesExt: number;
+    masseSalariale: number;
+    joursStockage: number;
+    joursClients: number;
+    joursFournisseurs: number;
+  };
+  kpisSpecifiques: (values: Record<string, number>) => SectorKPI[];
+}
+
 export interface SectorConfig {
   code: string;
   name: string;
@@ -36,6 +56,8 @@ export interface SectorConfig {
   icon: string;
   groups?: SectorFieldGroup[];
   fields: SectorField[];
+  variants?: Record<string, SectorVariant>;
+  defaultVariant?: string;
   buildHypotheses: (values: Record<string, number>) => {
     caMensuel: number;
     pctAchats: number;
@@ -65,6 +87,185 @@ const G_REGLEMENTAIRE: SectorFieldGroup = { id: 'reglementaire', label: 'Réglem
 /* ============================================================
    LES 13 SECTEURS
    ============================================================ */
+// ═══════════════════════════════════════════════════════════
+// AVICULTURE — 3 variantes (chair / pondeuse / mixte)
+// ═══════════════════════════════════════════════════════════
+
+const AVICULTURE_VARIANTS: Record<string, SectorVariant> = {
+  chair: {
+    key: 'chair',
+    label: 'Poulet de chair',
+    icon: '🐓',
+    description: 'Bandes de 40-50 jours, 5-7 cycles/an, vente au kg vif ou carcasse. Cycle court, rotation rapide.',
+    fields: [
+      { key: 'dureeCycle', label: "Durée d'un cycle", type: 'integer', unit: 'jours', default: 45, group: 'production', min: 35, max: 60, description: 'Poulet de chair : 40-50 j' },
+      { key: 'cycles', label: 'Nombre de cycles / an', type: 'integer', unit: 'cycles', default: 6, group: 'production', min: 4, max: 8 },
+      { key: 'tauxConversion', label: 'Indice de consommation', type: 'decimal', unit: 'kg alim/kg gain', default: 1.8, group: 'production', min: 1.5, max: 2.2, description: 'IC — plus bas = mieux' },
+      { key: 'prixKgVif', label: 'Prix vente / kg vif', type: 'currency', unit: 'FCFA', default: 2500, group: 'commercial' },
+      { key: 'prixKgCarcasse', label: 'Prix vente / kg carcasse', type: 'currency', unit: 'FCFA', default: 3500, group: 'commercial' },
+      { key: 'partVenteDirecte', label: 'Part vente directe', type: 'percent', unit: '%', default: 60, group: 'commercial', min: 0, max: 100 },
+      { key: 'pertesInvendus', label: 'Pertes / invendus', type: 'percent', unit: '%', default: 3, group: 'commercial', min: 0, max: 10 },
+    ],
+    investmentTemplates: [
+      { label: 'Poussinière + poulailler 5000 sujets', category: 'Corporel', cost: 18_000_000, startDate: DEFAULT_INVEST_DATE, duration: 15, mode: 'Linéaire' },
+      { label: 'Équipements (abreuvoirs, mangeoires, chauffage)', category: 'Corporel', cost: 5_000_000, startDate: DEFAULT_INVEST_DATE, duration: 5, mode: 'Linéaire' },
+      { label: 'Stock initial poussins + aliment', category: 'Corporel', cost: 2_500_000, startDate: DEFAULT_INVEST_DATE, duration: 3, mode: 'Linéaire' },
+      { label: 'Véhicule utilitaire', category: 'Corporel', cost: 8_000_000, startDate: DEFAULT_INVEST_DATE, duration: 5, mode: 'Linéaire' },
+    ],
+    chargeRubriques: ['Poussins', 'Aliments', 'Vaccins & vétérinaires', 'Litière', 'Chauffage & énergie', 'Eau', 'Emballage & transport', 'Personnel', 'Autorisation sanitaire'],
+    buildHypotheses: (v) => {
+      const poidsVif = v.tauxConversion > 0 ? (v.consoAlim ?? 4.5) / v.tauxConversion : 2.2;
+      const partDirecte = (v.partVenteDirecte ?? 60) / 100;
+      const prixMoyen = partDirecte * v.prixKgCarcasse + (1 - partDirecte) * v.prixKgVif;
+      const ventesNettes = v.cycles * v.effectif * (1 - v.mortalite / 100) * (1 - (v.pertesInvendus ?? 0) / 100);
+      const caAnnuel = ventesNettes * poidsVif * prixMoyen;
+      const coutPoussins = v.cycles * v.effectif * 700;
+      const coutAlim = v.cycles * v.effectif * (v.consoAlim ?? 4.5) * v.prixAlim;
+      const coutVaccins = v.cycles * v.effectif * v.vaccins;
+      const achats = coutPoussins + coutAlim + coutVaccins;
+      const chargesExt = v.cycles * (50000 + 80000 + 30000 + 40000) + v.autorisationSanitaire;
+      const masseSal = v.nbEmployes * v.salaireMoyen * 12 * (1 + v.chargesSociales / 100);
+      return {
+        caMensuel: caAnnuel / 12,
+        pctAchats: caAnnuel > 0 ? (achats / caAnnuel) * 100 : 55,
+        pctChargesExt: caAnnuel > 0 ? (chargesExt / caAnnuel) * 100 : 10,
+        masseSalariale: masseSal,
+        joursStockage: Math.round((v.dureeCycle ?? 45) * 0.5),
+        joursClients: v.delaiPaiement ?? 15,
+        joursFournisseurs: 30,
+      };
+    },
+    kpisSpecifiques: (v) => {
+      const poidsVif = v.tauxConversion > 0 ? (v.consoAlim ?? 4.5) / v.tauxConversion : 2.2;
+      const partDirecte = (v.partVenteDirecte ?? 60) / 100;
+      const prixMoyen = partDirecte * v.prixKgCarcasse + (1 - partDirecte) * v.prixKgVif;
+      const caCycle = v.effectif * (1 - v.mortalite / 100) * (1 - (v.pertesInvendus ?? 0) / 100) * poidsVif * prixMoyen;
+      return [
+        { label: 'Indice conso', value: v.tauxConversion.toFixed(2), hint: 'kg alim / kg gain', color: v.tauxConversion <= 1.9 ? 'accent' : 'amber' },
+        { label: 'Poids vif/sujet', value: poidsVif.toFixed(2) + ' kg', hint: 'estimé', color: 'primary' },
+        { label: 'CA / cycle', value: fmt(caCycle), hint: 'FCFA brut', color: 'accent' },
+        { label: 'Cycles / an', value: String(v.cycles), hint: 'rotation', color: 'blue' },
+      ];
+    },
+  },
+  pondeuse: {
+    key: 'pondeuse',
+    label: 'Poule pondeuse',
+    icon: '🥚',
+    description: 'Cycle long (18 sem croissance + 60 sem ponte), œufs + réformés. Référence Excel SCSA/ADPME.',
+    fields: [
+      { key: 'dureeCroissanceSem', label: 'Durée croissance', type: 'integer', unit: 'semaines', default: 18, group: 'production', min: 16, max: 20, description: 'Poulette → ponte' },
+      { key: 'dureePonteSem', label: 'Durée ponte', type: 'integer', unit: 'semaines', default: 60, group: 'production', min: 48, max: 72 },
+      { key: 'tauxPonteMoyen', label: 'Taux de ponte moyen', type: 'percent', unit: '%', default: 80, group: 'production', min: 65, max: 90, description: 'KPI central pondeuse' },
+      { key: 'prixPlateau30', label: 'Prix plateau 30 œufs', type: 'currency', unit: 'FCFA', default: 2200, group: 'commercial' },
+      { key: 'prixReformeKg', label: 'Prix poule réformée / kg', type: 'currency', unit: 'FCFA', default: 2000, group: 'commercial' },
+      { key: 'consoAlimentJourG', label: 'Consommation aliment / jour', type: 'decimal', unit: 'g/j/poule', default: 115, group: 'charges', min: 100, max: 125 },
+      { key: 'coutPlateauxParPoule', label: 'Coût plateaux / poule', type: 'currency', unit: 'FCFA', default: 120, group: 'charges' },
+      { key: 'tauxCasseePct', label: "Taux d'œufs cassés", type: 'percent', unit: '%', default: 3, group: 'production', min: 1, max: 8 },
+    ],
+    investmentTemplates: [
+      { label: 'Bâtiment ponte + pondoirs 5000 poules', category: 'Corporel', cost: 22_000_000, startDate: DEFAULT_INVEST_DATE, duration: 20, mode: 'Linéaire' },
+      { label: 'Équipements ponte (éclairage, abreuvoirs)', category: 'Corporel', cost: 6_000_000, startDate: DEFAULT_INVEST_DATE, duration: 7, mode: 'Linéaire' },
+      { label: 'Stock initial poulettes + aliment', category: 'Corporel', cost: 4_000_000, startDate: DEFAULT_INVEST_DATE, duration: 3, mode: 'Linéaire' },
+      { label: 'Véhicule utilitaire', category: 'Corporel', cost: 8_000_000, startDate: DEFAULT_INVEST_DATE, duration: 5, mode: 'Linéaire' },
+    ],
+    chargeRubriques: ['Poulettes', 'Aliments ponte', 'Vaccins & vétérinaires', 'Plateaux & alvéoles', 'Éclairage', 'Eau', 'Emballage & transport', 'Personnel', 'Autorisation sanitaire'],
+    buildHypotheses: (v) => {
+      const effectif = v.effectif;
+      const mortalite = v.mortalite / 100;
+      const tauxPonte = (v.tauxPonteMoyen ?? 80) / 100;
+      const tauxCassee = (v.tauxCasseePct ?? 3) / 100;
+      const nbOeufsParPoule = (v.dureePonteSem ?? 60) * 7 * tauxPonte;
+      const oeufsNets = effectif * (1 - mortalite) * nbOeufsParPoule * (1 - tauxCassee);
+      const plateaux = oeufsNets / 30;
+      const caOeufs = plateaux * (v.prixPlateau30 ?? 2200);
+      const nbReformes = effectif * (1 - mortalite);
+      const caReformes = nbReformes * 2.0 * (v.prixReformeKg ?? 2000);
+      const caAnnuel = caOeufs + caReformes;
+      const consoKgParPoule = ((v.consoAlimentJourG ?? 115) / 1000) * (v.dureePonteSem ?? 60) * 7;
+      const coutAlim = effectif * (1 - mortalite) * consoKgParPoule * v.prixAlim;
+      const coutPoulettes = effectif * 4500;
+      const coutVaccins = effectif * v.vaccins;
+      const coutPlateaux = effectif * (v.coutPlateauxParPoule ?? 120);
+      const achats = coutPoulettes + coutAlim + coutVaccins + coutPlateaux;
+      const chargesExt = 4 * (50000 + 60000 + 30000 + 40000) + v.autorisationSanitaire;
+      const masseSal = v.nbEmployes * v.salaireMoyen * 12 * (1 + v.chargesSociales / 100);
+      return {
+        caMensuel: caAnnuel / 12,
+        pctAchats: caAnnuel > 0 ? (achats / caAnnuel) * 100 : 55,
+        pctChargesExt: caAnnuel > 0 ? (chargesExt / caAnnuel) * 100 : 10,
+        masseSalariale: masseSal,
+        joursStockage: 30,
+        joursClients: v.delaiPaiement ?? 15,
+        joursFournisseurs: 30,
+      };
+    },
+    kpisSpecifiques: (v) => {
+      const nbOeufsParPoule = (v.dureePonteSem ?? 60) * 7 * ((v.tauxPonteMoyen ?? 80) / 100);
+      const caOeufsParPoule = (nbOeufsParPoule / 30) * (v.prixPlateau30 ?? 2200);
+      return [
+        { label: 'Taux de ponte', value: v.tauxPonteMoyen.toFixed(1) + ' %', hint: 'moyen', color: v.tauxPonteMoyen >= 75 ? 'accent' : 'amber' },
+        { label: 'Œufs / poule / an', value: nbOeufsParPoule.toFixed(0), hint: 'cumul', color: 'primary' },
+        { label: 'CA œufs / poule', value: fmt(caOeufsParPoule), hint: 'FCFA', color: 'accent' },
+        { label: 'Œufs cassés', value: v.tauxCasseePct.toFixed(1) + ' %', hint: 'max 8 %', color: v.tauxCasseePct <= 5 ? 'accent' : 'amber' },
+      ];
+    },
+  },
+  mixte: {
+    key: 'mixte',
+    label: 'Mixte (chair + ponte)',
+    icon: '🔀',
+    description: 'Deux ateliers combinés (chair + ponte) avec mutualisation partielle (gardien, véhicule, véto).',
+    fields: [
+      { key: 'nbSujetsChairSepare', label: 'Effectif chair (annuel)', type: 'integer', unit: 'sujets', default: 2000, group: 'production', min: 0, max: 20000 },
+      { key: 'nbSujetsPonteSepare', label: 'Effectif ponte', type: 'integer', unit: 'sujets', default: 3000, group: 'production', min: 0, max: 20000 },
+      { key: 'repartitionPontePct', label: 'Part CA œufs', type: 'percent', unit: '%', default: 60, group: 'commercial', min: 20, max: 80, description: 'Le reste = chair' },
+      { key: 'personnelSupplementaire', label: 'Personnel supplémentaire', type: 'integer', unit: 'pers', default: 2, group: 'rh' },
+    ],
+    investmentTemplates: [
+      { label: 'Bâtiments chair + ponte (séparés)', category: 'Corporel', cost: 30_000_000, startDate: DEFAULT_INVEST_DATE, duration: 18, mode: 'Linéaire' },
+      { label: 'Équipements mixtes', category: 'Corporel', cost: 9_000_000, startDate: DEFAULT_INVEST_DATE, duration: 6, mode: 'Linéaire' },
+      { label: 'Stock initial (poussins + poulettes)', category: 'Corporel', cost: 4_500_000, startDate: DEFAULT_INVEST_DATE, duration: 3, mode: 'Linéaire' },
+      { label: 'Véhicule utilitaire', category: 'Corporel', cost: 8_000_000, startDate: DEFAULT_INVEST_DATE, duration: 5, mode: 'Linéaire' },
+    ],
+    chargeRubriques: ['Poussins & poulettes', 'Aliments (chair + ponte)', 'Vaccins', 'Litière & plateaux', 'Énergie', 'Eau', 'Emballage & transport', 'Personnel', 'Autorisation sanitaire'],
+    buildHypotheses: (v) => {
+      const mortalite = v.mortalite / 100;
+      // Chair
+      const caChairCycle = (v.nbSujetsChairSepare ?? 2000) * (1 - mortalite) * 2.0 * 2800;
+      const caChairAn = caChairCycle * 6;
+      // Ponte
+      const nbOeufsPoule = 60 * 7 * 0.8;
+      const oeufs = (v.nbSujetsPonteSepare ?? 3000) * (1 - mortalite) * nbOeufsPoule * 0.97;
+      const caOeufs = (oeufs / 30) * 2200;
+      const caReformes = (v.nbSujetsPonteSepare ?? 3000) * (1 - mortalite) * 2.0 * 2000;
+      const caAnnuel = caChairAn + caOeufs + caReformes;
+      // Charges
+      const achats = caAnnuel * 0.55;
+      const chargesExt = 3_000_000;
+      const masseSal = (v.nbEmployes + (v.personnelSupplementaire ?? 0)) * v.salaireMoyen * 12 * (1 + v.chargesSociales / 100);
+      return {
+        caMensuel: caAnnuel / 12,
+        pctAchats: 55,
+        pctChargesExt: caAnnuel > 0 ? (chargesExt / caAnnuel) * 100 : 8,
+        masseSalariale: masseSal,
+        joursStockage: 30,
+        joursClients: v.delaiPaiement ?? 15,
+        joursFournisseurs: 30,
+      };
+    },
+    kpisSpecifiques: (v) => {
+      const repartition = v.repartitionPontePct ?? 60;
+      return [
+        { label: 'Part œufs', value: repartition.toFixed(0) + ' %', hint: 'du CA', color: 'blue' },
+        { label: 'Part chair', value: (100 - repartition).toFixed(0) + ' %', hint: 'du CA', color: 'accent' },
+        { label: 'Effectif chair', value: String(v.nbSujetsChairSepare ?? 0), hint: 'sujets/an', color: 'primary' },
+        { label: 'Effectif ponte', value: String(v.nbSujetsPonteSepare ?? 0), hint: 'sujets', color: 'primary' },
+      ];
+    },
+  },
+};
+
 export const SECTORS: SectorConfig[] = [
 
   /* ═══════════════════════════════════════════════════════════
@@ -73,84 +274,35 @@ export const SECTORS: SectorConfig[] = [
   {
     code: 'aviculture',
     name: 'Aviculture',
-    description: 'Poulets de chair, pondeuses, poussins, cycles',
+    description: 'Poulets de chair, pondeuses, ou mixte — 3 variantes métier',
     icon: '🐔',
     groups: [G_PRODUCTION, G_COMMERCIAL, G_CHARGES, G_RH, G_REGLEMENTAIRE],
     fields: [
-      // Production
-      { key: 'cycles', label: 'Nombre de cycles / an', type: 'integer', unit: 'cycles', default: 6, group: 'production', min: 4, max: 8, description: 'Standard : 5-7 cycles pour poulet de chair' },
-      { key: 'effectif', label: 'Effectif / cycle', type: 'integer', unit: 'sujets', default: 5000, group: 'production', min: 500, max: 20000 },
-      { key: 'dureeCycle', label: 'Durée d\'un cycle', type: 'integer', unit: 'jours', default: 45, group: 'production', min: 35, max: 60, description: 'Poulet de chair : 40-50 j' },
-      { key: 'mortalite', label: 'Taux de mortalité', type: 'percent', unit: '%', default: 5, group: 'production', min: 2, max: 10, description: 'Norme : 3-8 %' },
-      { key: 'tauxConversion', label: 'Taux de conversion alimentaire', type: 'decimal', unit: 'kg alim/kg gain', default: 1.8, group: 'production', min: 1.5, max: 2.2, description: 'Indice de consommation (IC) — plus bas = mieux' },
-      // Commercial
-      { key: 'prixKgVif', label: 'Prix vente / kg vif', type: 'currency', unit: 'FCFA', default: 2500, group: 'commercial', description: 'Vente au grossiste, animal vivant' },
-      { key: 'prixKgCarcasse', label: 'Prix vente / kg carcasse', type: 'currency', unit: 'FCFA', default: 3500, group: 'commercial', description: 'Vente directe, animal abattu' },
-      { key: 'partVenteDirecte', label: 'Part vente directe', type: 'percent', unit: '%', default: 60, group: 'commercial', min: 0, max: 100 },
-      { key: 'pertesInvendus', label: 'Pertes / invendus', type: 'percent', unit: '%', default: 3, group: 'commercial', min: 0, max: 10 },
-      // Charges
-      { key: 'prixPoussin', label: 'Prix poussin / sujet', type: 'currency', unit: 'FCFA', default: 700, group: 'charges' },
-      { key: 'consoAlim', label: 'Consommation aliment / sujet', type: 'decimal', unit: 'kg', default: 4.5, group: 'charges' },
+      // Production (communs)
+      { key: 'effectif', label: 'Effectif total', type: 'integer', unit: 'sujets', default: 5000, group: 'production', min: 500, max: 50000 },
+      { key: 'mortalite', label: 'Taux de mortalité', type: 'percent', unit: '%', default: 5, group: 'production', min: 2, max: 12 },
+      // Commercial (commun)
+      { key: 'delaiPaiement', label: 'Délai paiement clients', type: 'integer', unit: 'jours', default: 15, group: 'commercial', min: 0, max: 60 },
+      // Charges (communs)
       { key: 'prixAlim', label: 'Prix aliment / kg', type: 'currency', unit: 'FCFA', default: 400, group: 'charges' },
       { key: 'vaccins', label: 'Vaccins & vétérinaire / sujet', type: 'currency', unit: 'FCFA', default: 150, group: 'charges' },
-      { key: 'litiere', label: 'Litière / cycle', type: 'currency', unit: 'FCFA', default: 50000, group: 'charges' },
-      { key: 'chauffage', label: 'Chauffage & énergie / cycle', type: 'currency', unit: 'FCFA', default: 80000, group: 'charges' },
-      { key: 'eau', label: 'Eau / cycle', type: 'currency', unit: 'FCFA', default: 30000, group: 'charges' },
-      { key: 'emballageTransport', label: 'Emballage & transport / cycle', type: 'currency', unit: 'FCFA', default: 40000, group: 'charges' },
-      // RH
+      { key: 'consoAlim', label: 'Consommation aliment / sujet', type: 'decimal', unit: 'kg', default: 4.5, group: 'charges', description: 'Chair uniquement' },
+      // RH (communs)
       { key: 'nbEmployes', label: "Nombre d'employés", type: 'integer', unit: 'pers', default: 2, group: 'rh' },
       { key: 'salaireMoyen', label: 'Salaire moyen mensuel', type: 'currency', unit: 'FCFA', default: 60000, group: 'rh' },
       { key: 'chargesSociales', label: 'Charges sociales', type: 'percent', unit: '%', default: 20, group: 'rh', min: 0, max: 30 },
-      // Réglementaire
+      // Réglementaire (commun)
       { key: 'autorisationSanitaire', label: 'Autorisation sanitaire annuelle', type: 'currency', unit: 'FCFA', default: 100000, group: 'reglementaire' },
     ],
+    variants: AVICULTURE_VARIANTS,
+    defaultVariant: 'pondeuse',
     buildHypotheses: (v) => {
-      // Poids vif estimé à partir de l'IC : poids = consoAlim / tauxConversion
-      const poidsVif = v.tauxConversion > 0 ? v.consoAlim / v.tauxConversion : 2.2;
-      // Prix moyen pondéré selon mix vente directe (carcasse) / grossiste (vif)
-      const partDirecte = v.partVenteDirecte / 100;
-      const prixMoyen = partDirecte * v.prixKgCarcasse + (1 - partDirecte) * v.prixKgVif;
-      // CA annuel net de pertes et mortalité
-      const ventesNettes = v.cycles * v.effectif * (1 - v.mortalite / 100) * (1 - v.pertesInvendus / 100);
-      const caAnnuel = ventesNettes * poidsVif * prixMoyen;
-      // Achats = poussin + aliment + vaccins
-      const coutPoussins = v.cycles * v.effectif * v.prixPoussin;
-      const coutAlim = v.cycles * v.effectif * v.consoAlim * v.prixAlim;
-      const coutVaccins = v.cycles * v.effectif * v.vaccins;
-      const achats = coutPoussins + coutAlim + coutVaccins;
-      // Charges externes = litière + chauffage + eau + emballage + autorisation
-      const chargesExt = v.cycles * (v.litiere + v.chauffage + v.eau + v.emballageTransport) + v.autorisationSanitaire;
-      // Masse salariale
-      const masseSal = v.nbEmployes * v.salaireMoyen * 12 * (1 + v.chargesSociales / 100);
-      return {
-        caMensuel: caAnnuel / 12,
-        pctAchats: caAnnuel > 0 ? (achats / caAnnuel) * 100 : 55,
-        pctChargesExt: caAnnuel > 0 ? (chargesExt / caAnnuel) * 100 : 10,
-        masseSalariale: masseSal,
-        joursStockage: Math.round(v.dureeCycle * 0.5),
-        joursClients: 15,
-        joursFournisseurs: 30,
-      };
+      // Fallback : utilise pondeuse si appelé sans variante
+      return AVICULTURE_VARIANTS.pondeuse.buildHypotheses(v);
     },
-    investmentTemplates: [
-      { label: 'Poulailler 5000 sujets', category: 'Corporel', cost: 15_000_000, startDate: DEFAULT_INVEST_DATE, duration: 15, mode: 'Linéaire' },
-      { label: 'Équipements élevage (abreuvoirs, mangeoires)', category: 'Corporel', cost: 5_000_000, startDate: DEFAULT_INVEST_DATE, duration: 5, mode: 'Linéaire' },
-      { label: 'Stock initial poussins + aliment', category: 'Corporel', cost: 2_500_000, startDate: DEFAULT_INVEST_DATE, duration: 3, mode: 'Linéaire' },
-      { label: 'Véhicule utilitaire', category: 'Corporel', cost: 8_000_000, startDate: DEFAULT_INVEST_DATE, duration: 5, mode: 'Linéaire' },
-    ],
-    chargeRubriques: ['Poussins', 'Aliments', 'Vaccins & vétérinaires', 'Litière', 'Chauffage & énergie', 'Eau', 'Emballage & transport', 'Personnel', 'Autorisation sanitaire'],
-    kpisSpecifiques: (v) => {
-      const poidsVif = v.tauxConversion > 0 ? v.consoAlim / v.tauxConversion : 2.2;
-      const partDirecte = v.partVenteDirecte / 100;
-      const prixMoyen = partDirecte * v.prixKgCarcasse + (1 - partDirecte) * v.prixKgVif;
-      const caCycle = v.effectif * (1 - v.mortalite / 100) * (1 - v.pertesInvendus / 100) * poidsVif * prixMoyen;
-      return [
-        { label: 'Indice conso', value: v.tauxConversion.toFixed(2), hint: 'kg alim / kg gain', color: v.tauxConversion <= 1.9 ? 'accent' : 'amber' },
-        { label: 'Mortalité', value: v.mortalite.toFixed(1), hint: '% (max 8)', color: v.mortalite <= 8 ? 'accent' : 'danger' },
-        { label: 'Poids vif/sujet', value: poidsVif.toFixed(2), hint: 'kg estimé', color: 'primary' },
-        { label: 'CA / cycle', value: fmt(caCycle), hint: 'FCFA brut', color: 'accent' },
-      ];
-    },
+    investmentTemplates: AVICULTURE_VARIANTS.pondeuse.investmentTemplates,
+    chargeRubriques: AVICULTURE_VARIANTS.pondeuse.chargeRubriques,
+    kpisSpecifiques: (v) => AVICULTURE_VARIANTS.pondeuse.kpisSpecifiques(v),
   },
 
   /* ═══════════════════════════════════════════════════════════
@@ -941,9 +1093,16 @@ export function getSectorConfig(code: string): SectorConfig {
   return SECTORS.find((s) => s.code === code) || SECTORS[0];
 }
 
-export function getDefaultSectorValues(code: string): Record<string, number> {
+export function getDefaultSectorValues(code: string, variantKey?: string): Record<string, number> {
   const sector = getSectorConfig(code);
-  return Object.fromEntries(sector.fields.map((f) => [f.key, f.default]));
+  const values: Record<string, number> = {};
+  for (const f of sector.fields) values[f.key] = f.default;
+  if (sector.variants) {
+    const key = variantKey ?? sector.defaultVariant ?? '';
+    const variant = sector.variants[key];
+    if (variant) for (const f of variant.fields) values[f.key] = f.default;
+  }
+  return values;
 }
 
 /**
@@ -959,3 +1118,54 @@ export function getSectorGroups(sector: SectorConfig): SectorFieldGroup[] {
 export function getFieldsByGroup(sector: SectorConfig, groupId: string): SectorField[] {
   return sector.fields.filter((f) => (f.group ?? 'default') === groupId);
 }
+
+
+// ═══════════════════════════════════════════════════════════
+// Helpers variantes (compat backward : retournent la version
+// top-level si le secteur n'a pas de variantes)
+// ═══════════════════════════════════════════════════════════
+
+export function getActiveVariant(sector: SectorConfig, variantKey?: string): SectorVariant | null {
+  if (!sector.variants) return null;
+  const key = variantKey ?? sector.defaultVariant ?? '';
+  return sector.variants[key] ?? sector.variants[sector.defaultVariant ?? ''] ?? null;
+}
+
+export function getActiveFields(sector: SectorConfig, variantKey?: string): SectorField[] {
+  const variant = getActiveVariant(sector, variantKey);
+  return variant ? [...sector.fields, ...variant.fields] : sector.fields;
+}
+
+export function getActiveInvestmentTemplates(sector: SectorConfig, variantKey?: string) {
+  const variant = getActiveVariant(sector, variantKey);
+  return variant ? variant.investmentTemplates : sector.investmentTemplates;
+}
+
+export function getActiveChargeRubriques(sector: SectorConfig, variantKey?: string): string[] {
+  const variant = getActiveVariant(sector, variantKey);
+  return variant ? variant.chargeRubriques : sector.chargeRubriques;
+}
+
+export function getActiveKpisSpecifiques(sector: SectorConfig, values: Record<string, number>, variantKey?: string): SectorKPI[] {
+  const variant = getActiveVariant(sector, variantKey);
+  return variant ? variant.kpisSpecifiques(values) : sector.kpisSpecifiques(values);
+}
+
+export function buildHypothesesForSector(
+  sector: SectorConfig,
+  values: Record<string, number>,
+  variantKey?: string,
+): {
+  caMensuel: number;
+  pctAchats: number;
+  pctChargesExt: number;
+  masseSalariale: number;
+  joursStockage: number;
+  joursClients: number;
+  joursFournisseurs: number;
+} {
+  const variant = getActiveVariant(sector, variantKey);
+  if (variant) return variant.buildHypotheses(values);
+  return sector.buildHypotheses(values);
+}
+

@@ -9,14 +9,15 @@ import {
   type Investment,
   type Financement,
 } from '../types/project';
-import { SECTORS, getSectorConfig, getDefaultSectorValues } from '../lib/sectors-config';
+import { SECTORS, getSectorConfig, getDefaultSectorValues, buildHypothesesForSector, getActiveInvestmentTemplates } from '../lib/sectors-config';
 
 const INITIAL_SECTOR = 'aviculture';
 const INITIAL_VALUES = getDefaultSectorValues(INITIAL_SECTOR);
 
-function buildInvestmentsFromTemplate(sectorCode: string): Investment[] {
+function buildInvestmentsFromTemplate(sectorCode: string, variantKey?: string): Investment[] {
   const sector = getSectorConfig(sectorCode);
-  return sector.investmentTemplates.map((inv, i) => ({
+  const templates = getActiveInvestmentTemplates(sector, variantKey);
+  return templates.map((inv, i) => ({
     ...inv,
     id: `inv-${sectorCode}-${i}-${Date.now()}`,
   }));
@@ -25,9 +26,10 @@ function buildInvestmentsFromTemplate(sectorCode: string): Investment[] {
 function buildHypothesesFromSector(
   sectorCode: string,
   values: Record<string, number>,
+  variantKey?: string,
 ): Hypotheses {
   const sector = getSectorConfig(sectorCode);
-  const derived = sector.buildHypotheses(values);
+  const derived = buildHypothesesForSector(sector, values, variantKey);
   return {
     ...DEFAULT_HYPOTHESES,
     caMensuel: derived.caMensuel,
@@ -54,6 +56,7 @@ interface ProjectState {
   investments: Investment[];
   financement: Financement;
   sectorCode: string;
+  sectorVariant: string;
   sectorValues: Record<string, number>;
 
   currentProjectId: string | null;
@@ -69,9 +72,10 @@ interface ProjectState {
   addInvestment: (inv: Investment) => void;
   removeInvestment: (id: string) => void;
   updateFinancement: <K extends keyof Financement>(k: K, v: Financement[K]) => void;
-  applySectorTemplate: (code: string) => void;
+  applySectorTemplate: (code: string, variantKey?: string) => void;
   updateSectorValue: (key: string, value: number) => void;
   setSelectedSector: (code: string) => void;
+  setVariant: (variantKey: string) => void;
   loadProject: (name: string, sector: string) => void;
 
   saveCurrentProject: () => Promise<{ id: string }>;
@@ -117,6 +121,7 @@ export const useProjectStore = create<ProjectState>()(
       investments: buildInvestmentsFromTemplate(INITIAL_SECTOR),
       financement: DEFAULT_FINANCEMENT,
       sectorCode: INITIAL_SECTOR,
+      sectorVariant: getSectorConfig(INITIAL_SECTOR).defaultVariant ?? '',
       sectorValues: INITIAL_VALUES,
 
       currentProjectId: null,
@@ -139,16 +144,19 @@ export const useProjectStore = create<ProjectState>()(
       removeInvestment: (id) => set((s) => ({ investments: s.investments.filter((i) => i.id !== id) })),
       updateFinancement: (k, v) => set((s) => ({ financement: { ...s.financement, [k]: v } })),
 
-      applySectorTemplate: (code) => {
-        const values = getDefaultSectorValues(code);
-        const newHyp = buildHypothesesFromSector(code, values);
-        const newInv = buildInvestmentsFromTemplate(code);
+      applySectorTemplate: (code, variantKey) => {
+        const sectorCfg = getSectorConfig(code);
+        const effectiveVariant = variantKey ?? sectorCfg.defaultVariant ?? '';
+        const values = getDefaultSectorValues(code, effectiveVariant);
+        const newHyp = buildHypothesesFromSector(code, values, effectiveVariant);
+        const newInv = buildInvestmentsFromTemplate(code, effectiveVariant);
         const prev = get().hypotheses;
         newHyp.saisonnalite = prev.saisonnalite;
         newHyp.croissanceA2 = prev.croissanceA2;
         newHyp.croissanceA3 = prev.croissanceA3;
         set((s) => ({
           sectorCode: code,
+          sectorVariant: effectiveVariant,
           sectorValues: values,
           hypotheses: newHyp,
           investments: newInv,
@@ -158,7 +166,7 @@ export const useProjectStore = create<ProjectState>()(
 
       updateSectorValue: (key, value) => set((s) => {
         const newValues = { ...s.sectorValues, [key]: value };
-        const newHyp = buildHypothesesFromSector(s.sectorCode, newValues);
+        const newHyp = buildHypothesesFromSector(s.sectorCode, newValues, s.sectorVariant);
         newHyp.saisonnalite = s.hypotheses.saisonnalite;
         newHyp.croissanceA2 = s.hypotheses.croissanceA2;
         newHyp.croissanceA3 = s.hypotheses.croissanceA3;
@@ -166,6 +174,11 @@ export const useProjectStore = create<ProjectState>()(
       }),
 
       setSelectedSector: (code) => get().applySectorTemplate(code),
+
+      setVariant: (variantKey) => {
+        const code = get().sectorCode;
+        get().applySectorTemplate(code, variantKey);
+      },
 
       loadProject: (name, sector) => set((s) => ({
         info: { ...s.info, projectName: name, sectorCode: sector },
@@ -185,6 +198,7 @@ export const useProjectStore = create<ProjectState>()(
               investments: state.investments,
               financement: state.financement,
               sectorCode: state.sectorCode,
+              sectorVariant: state.sectorVariant,
               sectorValues: state.sectorValues,
             },
           };
@@ -243,6 +257,7 @@ export const useProjectStore = create<ProjectState>()(
             investments: d.investments || s.investments,
             financement: d.financement || s.financement,
             sectorCode: d.sectorCode || proj.sector || s.sectorCode,
+            sectorVariant: (d as any).sectorVariant || (d.sectorCode ? (getSectorConfig(d.sectorCode).defaultVariant ?? '') : s.sectorVariant),
             sectorValues: d.sectorValues || s.sectorValues,
             isLoading: false,
             lastSavedAt: proj.updated_at || proj.created_at || null,
@@ -300,6 +315,7 @@ export const useProjectStore = create<ProjectState>()(
         investments: buildInvestmentsFromTemplate(INITIAL_SECTOR),
         financement: DEFAULT_FINANCEMENT,
         sectorCode: INITIAL_SECTOR,
+        sectorVariant: getSectorConfig(INITIAL_SECTOR).defaultVariant ?? '',
         sectorValues: INITIAL_VALUES,
         lastSavedAt: null,
         syncError: null,
@@ -307,13 +323,14 @@ export const useProjectStore = create<ProjectState>()(
     }),
     {
       name: 'bpb-project-store',
-      version: 3,
+      version: 4,
       partialize: (s) => ({
         info: s.info,
         hypotheses: s.hypotheses,
         investments: s.investments,
         financement: s.financement,
         sectorCode: s.sectorCode,
+        sectorVariant: s.sectorVariant,
         sectorValues: s.sectorValues,
         currentProjectId: s.currentProjectId,
         lastSavedAt: s.lastSavedAt,

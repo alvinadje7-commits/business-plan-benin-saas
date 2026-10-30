@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { KpiCard } from "../ui/KpiCard";
 import { useProjectStore } from "../../store/projectStore";
-import { getSectorConfig } from '../../lib/sectors-config';
+import { getSectorConfig, getActiveChargeRubriques } from '../../lib/sectors-config';
 import { fmtFCFA, fmtSigned, computeFinancialResult } from '../../lib/financial-statements-engine';
 import type { Hypotheses, Investment } from '../../types/project';
 
@@ -332,6 +332,7 @@ function TresoTab({ tresorerie }: { tresorerie: any[] }) {
 /* ============ NOTES ============ */
 function NotesTab({ hypotheses, investments }: { hypotheses: Hypotheses; investments: Investment[] }) {
   const sectorCode = useProjectStore((s) => s.sectorCode);
+  const sectorVariant = useProjectStore((s) => s.sectorVariant);
   const sector = getSectorConfig(sectorCode);
   return (
     <div className="space-y-4">
@@ -369,7 +370,7 @@ function NotesTab({ hypotheses, investments }: { hypotheses: Hypotheses; investm
                 Les charges du compte de résultat sont ventilées selon les rubriques du secteur :
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {sector.chargeRubriques.map((r) => (
+                {getActiveChargeRubriques(sector, sectorVariant).map((r) => (
                   <span key={r} className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                     {r}
                   </span>

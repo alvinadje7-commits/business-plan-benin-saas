@@ -14,6 +14,8 @@ import { ExportsView } from '../components/views/ExportsView';
 import { PartageView } from '../components/views/PartageView';
 import { ParametresView } from '../components/views/ParametresView';
 import { ObjectifTRIView } from '../components/views/ObjectifTRIView';
+import { VariantBadge } from '../components/VariantSelector';
+import { getSectorConfig } from '../lib/sectors-config';
 
 type View = 'objectif' | 'dashboard' | 'projects' | 'assistant' | 'financial' | 'scenarios' | 'exports' | 'share' | 'settings';
 
@@ -45,6 +47,7 @@ export default function App() {
 
   const projectName = useProjectStore((s) => s.info.projectName);
   const selectedSector = useProjectStore((s) => s.sectorCode);
+  const sectorVariant = useProjectStore((s) => s.sectorVariant);
   const setSelectedSector = useProjectStore((s) => s.setSelectedSector);
   const loadProject = useProjectStore((s) => s.loadProject);
 
@@ -114,6 +117,7 @@ export default function App() {
           <div className="mt-3 p-2.5 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/20">
             <div className="text-[11px] font-medium">Moteur sectoriel</div>
             <div className="text-[10px] text-white/70 mt-0.5">12 secteurs • Formules OHADA</div>
+            <VariantBadge sector={getSectorConfig(selectedSector)} variantKey={sectorVariant} />
             <div className="mt-2 grid grid-cols-4 gap-1">
               {SECTORS.slice(0, 8).map((s) => (
                 <div key={s.code} className="w-6 h-6 rounded bg-white/10 flex items-center justify-center text-[11px]">

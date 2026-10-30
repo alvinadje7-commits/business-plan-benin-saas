@@ -2,10 +2,11 @@ import { useMemo, useState } from 'react';
 import { AccordionGroup, FormSection, FormField, inputClass } from './FormSection';
 import { computeSIG, computeBFR, fmtFCFA, fmtFCFAsigned } from '../../lib/sig-engine';
 import { useProjectStore } from '../../store/projectStore';
-import { getSectorConfig, getSectorGroups } from '../../lib/sectors-config';
+import { getSectorConfig, getSectorGroups, getActiveFields } from '../../lib/sectors-config';
 import type { Hypotheses, SIG } from '../../types/project';
 import { ProductionCard } from './ProductionCard';
 import { ChargesCard } from './ChargesCard';
+import { VariantSelector } from '../VariantSelector';
 
 const MOIS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 
@@ -29,12 +30,15 @@ interface FieldStat {
 export function HypothesesCard({ onValidate }: Props) {
   const h = useProjectStore((s) => s.hypotheses);
   const sectorCode = useProjectStore((s) => s.sectorCode);
+  const sectorVariant = useProjectStore((s) => s.sectorVariant);
+  const setVariant = useProjectStore((s) => s.setVariant);
   const sectorValues = useProjectStore((s) => s.sectorValues);
   const update = useProjectStore((s) => s.updateHypothese);
   const updateSaison = useProjectStore((s) => s.updateSaisonnalite);
   const updateSectorValue = useProjectStore((s) => s.updateSectorValue);
 
   const sector = getSectorConfig(sectorCode);
+  const activeFields = getActiveFields(sector, sectorVariant);
   const groups = getSectorGroups(sector);
 
   const sig = computeSIG(h);
@@ -46,7 +50,7 @@ export function HypothesesCard({ onValidate }: Props) {
   // Calcule les stats par champ (modifié / hors plage)
   const fieldStats = useMemo<Record<string, FieldStat>>(() => {
     const map: Record<string, FieldStat> = {};
-    for (const f of sector.fields) {
+    for (const f of activeFields) {
       const val = sectorValues[f.key] ?? f.default;
       const modified = Math.abs(val - f.default) > 0.001;
       const outOfRange =
@@ -75,7 +79,7 @@ export function HypothesesCard({ onValidate }: Props) {
 
   // Stats par groupe
   const groupsWithStats = groups.map((g, index) => {
-    const groupFields = sector.fields
+    const groupFields = activeFields
       .filter((f) => (f.group ?? 'default') === g.id)
       .map((f) => fieldStats[f.key]);
     const modCount = groupFields.filter((f) => f.modified).length;
@@ -113,6 +117,17 @@ export function HypothesesCard({ onValidate }: Props) {
 
   return (
     <div className="space-y-5">
+      {sector.variants && (
+        <div className="rounded-xl border border-slate-200 bg-white p-3">
+          <VariantSelector
+            sector={sector}
+            currentVariant={sectorVariant}
+            onSelect={setVariant}
+            layout="compact"
+          />
+        </div>
+      )}
+
       {/* En-tête */}
       <div className="flex items-start justify-between flex-wrap gap-2">
         <div>

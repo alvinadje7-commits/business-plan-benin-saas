@@ -7,7 +7,7 @@ import { ChargesChart } from './charts/ChargesChart';
 import { RepartitionChart } from './charts/RepartitionChart';
 import { computeFinancialResult, fmtFCFA } from '../lib/financial-statements-engine';
 import { useProjectStore } from '../store/projectStore';
-import { getSectorConfig } from '../lib/sectors-config';
+import { getSectorConfig, getActiveKpisSpecifiques } from '../lib/sectors-config';
 
 function readSettings(): { tauxActualisation: number; dureeEtude: number } {
   try {
@@ -27,6 +27,7 @@ export function Dashboard() {
   const financement = useProjectStore((s) => s.financement);
   const sectorCode = useProjectStore((s) => s.sectorCode);
   const sectorValues = useProjectStore((s) => s.sectorValues);
+  const sectorVariant = useProjectStore((s) => s.sectorVariant);
 
   const settings = readSettings();
   const tauxPct = settings.tauxActualisation;
@@ -40,7 +41,7 @@ export function Dashboard() {
   );
 
   const sector = getSectorConfig(sectorCode);
-  const sectorKpis = useMemo(() => sector.kpisSpecifiques(sectorValues), [sector, sectorValues]);
+  const sectorKpis = useMemo(() => getActiveKpisSpecifiques(sector, sectorValues, sectorVariant), [sector, sectorValues]);
 
   return (
     <div className="space-y-3">

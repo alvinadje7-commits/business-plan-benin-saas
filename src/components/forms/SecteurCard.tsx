@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { SECTORS } from '../../lib/mockup-data';
 import { useProjectStore } from '../../store/projectStore';
 import { FormSection, FormField, inputClass } from './FormSection';
+import { VariantSelector } from '../VariantSelector';
+import {
+  getActiveFields, getActiveKpisSpecifiques, getSectorConfig,
+} from '../../lib/sectors-config';
 
 interface Props {
   onSelect?: (code: string) => void;
@@ -9,38 +13,77 @@ interface Props {
 
 export function SecteurCard({ onSelect }: Props) {
   const sectorCode = useProjectStore((s) => s.sectorCode);
+  const sectorVariant = useProjectStore((s) => s.sectorVariant);
   const sectorValues = useProjectStore((s) => s.sectorValues);
   const applySectorTemplate = useProjectStore((s) => s.applySectorTemplate);
   const updateSectorValue = useProjectStore((s) => s.updateSectorValue);
 
   const [preview, setPreview] = useState(sectorCode);
+  // Variante sélectionnée en preview (initialisée sur la variante courante si on reste sur le secteur appliqué)
+  const [previewVariant, setPreviewVariant] = useState<string>(sectorVariant);
+
   const sector = SECTORS.find((s) => s.code === preview) || SECTORS[0];
-  const isApplied = preview === sectorCode;
+  const sectorFull = getSectorConfig(sector.code);
+  const hasVariants = !!sectorFull.variants;
+  const defaultVariant = sectorFull.defaultVariant ?? '';
+  const effectivePreviewVariant = hasVariants ? (previewVariant || defaultVariant) : '';
+
+  const isAppliedSector = preview === sectorCode;
+  const isAppliedVariant = !hasVariants || effectivePreviewVariant === sectorVariant;
+  const isApplied = isAppliedSector && isAppliedVariant;
+
+  // Changer de secteur → reset la variante preview
+  const handleSelectSector = (code: string) => {
+    setPreview(code);
+    const cfg = getSectorConfig(code);
+    setPreviewVariant(cfg.variants ? (cfg.defaultVariant ?? '') : '');
+  };
 
   const handleApply = () => {
     if (isApplied) {
-      // Déjà appliqué → on passe juste à l'étape suivante
       if (onSelect) onSelect(sectorCode);
       return;
     }
+    const variantLabel = hasVariants
+      ? ` (${sectorFull.variants![effectivePreviewVariant]?.label ?? ''})`
+      : '';
     if (
       confirm(
-        `Appliquer le secteur "${sector.name}" ?\n\n` +
+        `Appliquer le secteur "${sector.name}"${variantLabel} ?\n\n` +
           `⚠️ Les hypothèses, charges et investissements seront remplacés par les valeurs du secteur.\n` +
           `Le financement et les infos promoteur sont conservés.`,
       )
     ) {
-      applySectorTemplate(preview);
+      applySectorTemplate(preview, hasVariants ? effectivePreviewVariant : undefined);
       if (onSelect) onSelect(preview);
     }
   };
 
-  // Prévisualisation des KPIs sectoriels (à partir des valeurs actuelles si preview === sectorCode, sinon defaults)
-  const previewValues =
-    preview === sectorCode
-      ? sectorValues
-      : Object.fromEntries(sector.fields.map((f) => [f.key, f.default]));
-  const kpis = sector.kpisSpecifiques(previewValues);
+  // Champs actifs (communs + variante)
+  const activeFields = useMemo(
+    () => getActiveFields(sectorFull, hasVariants ? effectivePreviewVariant : undefined),
+    [sectorFull, hasVariants, effectivePreviewVariant],
+  );
+
+  // Valeurs preview : si secteur appliqué et variante appliquée → valeurs réelles ; sinon defaults
+  const previewValues = useMemo(() => {
+    if (isAppliedSector && isAppliedVariant) return sectorValues;
+    const defaults: Record<string, number> = {};
+    for (const f of activeFields) defaults[f.key] = f.default;
+    return defaults;
+  }, [isAppliedSector, isAppliedVariant, sectorValues, activeFields]);
+
+  // KPIs sectoriels preview
+  const kpis = useMemo(() => {
+    if (isAppliedSector && isAppliedVariant) {
+      return getActiveKpisSpecifiques(sectorFull, sectorValues, sectorVariant);
+    }
+    return getActiveKpisSpecifiques(sectorFull, previewValues, effectivePreviewVariant);
+  }, [sectorFull, sectorValues, sectorVariant, previewValues, effectivePreviewVariant, isAppliedSector, isAppliedVariant]);
+
+  const variantLabel = hasVariants
+    ? sectorFull.variants![effectivePreviewVariant]?.label ?? ''
+    : '';
 
   return (
     <div className="space-y-5">
@@ -61,7 +104,7 @@ export function SecteurCard({ onSelect }: Props) {
               <button
                 key={s.code}
                 type="button"
-                onClick={() => setPreview(s.code)}
+                onClick={() => handleSelectSector(s.code)}
                 className={`relative p-3 rounded-xl border-2 text-left transition ${
                   selected
                     ? 'border-[#0F172A] bg-[#0F172A] text-white shadow-lg'
@@ -74,11 +117,9 @@ export function SecteurCard({ onSelect }: Props) {
                   </span>
                 )}
                 <div className="flex items-center gap-2">
-                  <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0 ${
-                      selected ? 'bg-white' : 'bg-slate-100'
-                    }`}
-                  >
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0 ${
+                    selected ? 'bg-white' : 'bg-slate-100'
+                  }`}>
                     {s.icon}
                   </div>
                   <div className="min-w-0">
@@ -95,15 +136,32 @@ export function SecteurCard({ onSelect }: Props) {
 
         {!isApplied && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            ⚠️ Le secteur <b>{sector.name}</b> n'est pas encore appliqué. Clique sur
-            "Appliquer ce secteur" ci-dessous pour recharger les hypothèses, charges et
-            investissements associés.
+            ⚠️ Le secteur <b>{sector.name}</b>
+            {hasVariants && variantLabel && ` — ${variantLabel}`} n'est pas encore appliqué.
+            Clique sur "Appliquer ce secteur" ci-dessous.
           </div>
         )}
       </FormSection>
 
+      {/* Sélection de variante (uniquement si le secteur en a) */}
+      {hasVariants && (
+        <FormSection title={`2. Variante — ${sector.name}`} icon="🎨">
+          <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+            Ce secteur propose plusieurs ateliers. Le choix conditionne les champs affichés, les investissements
+            et les KPIs sectoriels. Les champs communs (effectif, mortalité, aliment…) sont partagés.
+          </div>
+          <VariantSelector
+            sector={sectorFull}
+            currentVariant={effectivePreviewVariant}
+            onSelect={(k) => setPreviewVariant(k)}
+            layout="cards"
+            showWarning={false}
+          />
+        </FormSection>
+      )}
+
       {/* Aperçu des KPIs sectoriels */}
-      <FormSection title={`2. KPIs sectoriels — ${sector.name}`} icon="📊">
+      <FormSection title={`${hasVariants ? '3' : '2'}. KPIs sectoriels — ${sector.name}${variantLabel ? ' · ' + variantLabel : ''}`} icon="📊">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {kpis.map((kpi, i) => (
             <div
@@ -131,23 +189,20 @@ export function SecteurCard({ onSelect }: Props) {
       </FormSection>
 
       {/* Champs sectoriels */}
-      <FormSection title={`3. Champs — ${sector.name}`} icon="⚙️">
+      <FormSection title={`${hasVariants ? '4' : '3'}. Champs — ${sector.name}${variantLabel ? ' · ' + variantLabel : ''}`} icon="⚙️">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {sector.fields.map((field) => (
+          {activeFields.map((field) => (
             <FormField key={field.key} label={field.label} unit={field.unit}>
               <div className="relative">
                 <input
                   type="number"
                   value={previewValues[field.key] ?? field.default}
                   onChange={(e) => {
-                    if (preview !== sectorCode) {
-                      // Modifier les valeurs en preview n'a pas d'effet tant qu'on n'a pas appliqué
-                      return;
-                    }
+                    if (!isApplied) return;
                     updateSectorValue(field.key, Number(e.target.value));
                   }}
-                  disabled={preview !== sectorCode}
-                  className={`${inputClass} ${preview !== sectorCode ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  disabled={!isApplied}
+                  className={`${inputClass} ${!isApplied ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
                 {field.unit && (
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
@@ -158,7 +213,7 @@ export function SecteurCard({ onSelect }: Props) {
             </FormField>
           ))}
         </div>
-        {preview !== sectorCode && (
+        {!isApplied && (
           <p className="text-[11px] text-slate-500">
             ℹ️ Clique sur "Appliquer ce secteur" pour pouvoir modifier ces valeurs.
           </p>
