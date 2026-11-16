@@ -17,32 +17,20 @@ function fmt(n: number): string {
   return Math.round(n).toLocaleString('fr-FR');
 }
 
-const DEFAULT_SALAIRES: SalaryLine[] = [
-  { id: 's1', poste: 'Gérant', monthly: 150000, socialCharges: 1, fiscalCharges: 1, recruitments: [{ year: 1, count: 1 }] },
-  { id: 's2', poste: 'Comptable', monthly: 100000, socialCharges: 1, fiscalCharges: 1, recruitments: [{ year: 1, count: 1 }] },
-  { id: 's3', poste: 'Technicien', monthly: 80000, socialCharges: 1, fiscalCharges: 1, recruitments: [{ year: 1, count: 2 }] },
-];
 
-const DEFAULT_EXTERNES: ChargeExterne[] = [
-  { id: 'e1', label: 'Loyer', monthly: 100000 },
-  { id: 'e2', label: 'Électricité', monthly: 50000 },
-  { id: 'e3', label: 'Internet & téléphone', monthly: 30000 },
-  { id: 'e4', label: 'Honoraires comptable', monthly: 40000 },
-];
 
-const DEFAULT_TAXES: TaxLine[] = [
-  { id: 't1', label: 'Patente', monthly: 25000 },
-  { id: 't2', label: 'Taxes locales', monthly: 10000 },
-];
 
 export function ChargesCard() {
   const [tab, setTab] = useState<Tab>('synthese');
   const hypotheses = useProjectStore((s) => s.hypotheses) as { dureeEtude?: number } | null;
   const durationYears = useDureeEtude();
 
-  const [salaires, setSalaires] = useState<SalaryLine[]>(DEFAULT_SALAIRES);
-  const [externes, setExternes] = useState<ChargeExterne[]>(DEFAULT_EXTERNES);
-  const [taxes, setTaxes] = useState<TaxLine[]>(DEFAULT_TAXES);
+  const salaires = useProjectStore((s) => s.salaryLines);
+  const externes = useProjectStore((s) => s.externalCharges);
+  const taxes = useProjectStore((s) => s.taxLines);
+  const setSalaires = useProjectStore((s) => s.updateSalaryLines);
+  const setExternes = useProjectStore((s) => s.updateExternalCharges);
+  const setTaxes = useProjectStore((s) => s.updateTaxLines);
 
   const prod = useProductionModel();
   const cvMonthly = useMemo(() => {

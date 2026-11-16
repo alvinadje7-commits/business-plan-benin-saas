@@ -10,6 +10,10 @@ import {
   type Financement,
 } from '../types/project';
 import { SECTORS, getSectorConfig, getDefaultSectorValues, buildHypothesesForSector, getActiveInvestmentTemplates } from '../lib/sectors-config';
+import type { SalaryLine } from '../lib/charges-salaires';
+import type { ChargeExterne } from '../lib/charges-externes';
+import type { TaxLine } from '../lib/impots-taxes';
+import { computeSalaries } from '../lib/charges-salaires';
 
 const INITIAL_SECTOR = 'aviculture';
 const INITIAL_VALUES = getDefaultSectorValues(INITIAL_SECTOR);
@@ -53,6 +57,9 @@ export interface ProjectListItem {
 interface ProjectState {
   info: GeneralInfo;
   hypotheses: Hypotheses;
+  salaryLines: SalaryLine[];
+  externalCharges: ChargeExterne[];
+  taxLines: TaxLine[];
   investments: Investment[];
   financement: Financement;
   sectorCode: string;
@@ -67,6 +74,9 @@ interface ProjectState {
 
   updateInfo: <K extends keyof GeneralInfo>(k: K, v: GeneralInfo[K]) => void;
   updateHypothese: <K extends keyof Hypotheses>(k: K, v: Hypotheses[K]) => void;
+  updateSalaryLines: (lines: SalaryLine[]) => void;
+  updateExternalCharges: (charges: ChargeExterne[]) => void;
+  updateTaxLines: (lines: TaxLine[]) => void;
   updateSaisonnalite: (index: number, v: number) => void;
   updateInvestment: (id: string, patch: Partial<Investment>) => void;
   addInvestment: (inv: Investment) => void;
@@ -118,6 +128,21 @@ export const useProjectStore = create<ProjectState>()(
     (set, get) => ({
       info: DEFAULT_GENERAL_INFO,
       hypotheses: buildHypothesesFromSector(INITIAL_SECTOR, INITIAL_VALUES),
+      salaryLines: [
+        { id: 's1', poste: 'Gérant', monthly: 150000, socialCharges: 1, fiscalCharges: 1, recruitments: [{ year: 1, count: 1 }] },
+        { id: 's2', poste: 'Comptable', monthly: 100000, socialCharges: 1, fiscalCharges: 1, recruitments: [{ year: 1, count: 1 }] },
+        { id: 's3', poste: 'Technicien', monthly: 80000, socialCharges: 1, fiscalCharges: 1, recruitments: [{ year: 1, count: 2 }] },
+      ],
+      externalCharges: [
+        { id: 'e1', label: 'Loyer', monthly: 100000 },
+        { id: 'e2', label: 'Électricité', monthly: 50000 },
+        { id: 'e3', label: 'Internet & téléphone', monthly: 30000 },
+        { id: 'e4', label: 'Honoraires comptable', monthly: 40000 },
+      ],
+      taxLines: [
+        { id: 't1', label: 'Patente', monthly: 25000 },
+        { id: 't2', label: 'Taxes locales', monthly: 10000 },
+      ],
       investments: buildInvestmentsFromTemplate(INITIAL_SECTOR),
       financement: DEFAULT_FINANCEMENT,
       sectorCode: INITIAL_SECTOR,
@@ -132,6 +157,25 @@ export const useProjectStore = create<ProjectState>()(
 
       updateInfo: (k, v) => set((s) => ({ info: { ...s.info, [k]: v } })),
       updateHypothese: (k, v) => set((s) => ({ hypotheses: { ...s.hypotheses, [k]: v } })),
+      updateSalaryLines: (lines) => set((s) => {
+        const years = Math.max(1, Math.ceil(Number(s.financement?.empruntDuree ?? 7)));
+        const result = computeSalaries(lines, years);
+        return {
+          salaryLines: lines,
+          hypotheses: { ...s.hypotheses, masseSalariale: result.totalAnnual[0] ?? 0 },
+        };
+      }),
+      updateExternalCharges: (charges) => set((s) => {
+        const totalMonthly = charges.reduce((sum, c) => sum + (Number(c.monthly) || 0), 0);
+        const totalAnnual = totalMonthly * 12;
+        const caAnnuel = (Number(s.hypotheses.caMensuel) || 0) * 12;
+        const pct = caAnnuel > 0 ? (totalAnnual / caAnnuel) * 100 : 0;
+        return {
+          externalCharges: charges,
+          hypotheses: { ...s.hypotheses, pctChargesExt: pct },
+        };
+      }),
+      updateTaxLines: (lines) => set(() => ({ taxLines: lines })),
       updateSaisonnalite: (index, v) => set((s) => {
         const next = [...s.hypotheses.saisonnalite];
         next[index] = v;
@@ -326,6 +370,21 @@ export const useProjectStore = create<ProjectState>()(
 
       reset: () => set({
         currentProjectId: null,
+        salaryLines: [
+          { id: 's1', poste: 'Gérant', monthly: 150000, socialCharges: 1, fiscalCharges: 1, recruitments: [{ year: 1, count: 1 }] },
+          { id: 's2', poste: 'Comptable', monthly: 100000, socialCharges: 1, fiscalCharges: 1, recruitments: [{ year: 1, count: 1 }] },
+          { id: 's3', poste: 'Technicien', monthly: 80000, socialCharges: 1, fiscalCharges: 1, recruitments: [{ year: 1, count: 2 }] },
+        ],
+        externalCharges: [
+          { id: 'e1', label: 'Loyer', monthly: 100000 },
+          { id: 'e2', label: 'Électricité', monthly: 50000 },
+          { id: 'e3', label: 'Internet & téléphone', monthly: 30000 },
+          { id: 'e4', label: 'Honoraires comptable', monthly: 40000 },
+        ],
+        taxLines: [
+          { id: 't1', label: 'Patente', monthly: 25000 },
+          { id: 't2', label: 'Taxes locales', monthly: 10000 },
+        ],
         info: DEFAULT_GENERAL_INFO,
         hypotheses: buildHypothesesFromSector(INITIAL_SECTOR, INITIAL_VALUES),
         investments: buildInvestmentsFromTemplate(INITIAL_SECTOR),
