@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useDureeEtude } from '../../hooks/useDureeEtude';
 import { FormSection, inputClass } from './FormSection';
 import { useProjectStore } from '../../store/projectStore';
 import { computeSalaries } from '../../lib/charges-salaires';
@@ -37,7 +38,7 @@ const DEFAULT_TAXES: TaxLine[] = [
 export function ChargesCard() {
   const [tab, setTab] = useState<Tab>('synthese');
   const hypotheses = useProjectStore((s) => s.hypotheses) as { dureeEtude?: number } | null;
-  const durationYears = hypotheses?.dureeEtude ?? 7;
+  const durationYears = useDureeEtude();
 
   const [salaires, setSalaires] = useState<SalaryLine[]>(DEFAULT_SALAIRES);
   const [externes, setExternes] = useState<ChargeExterne[]>(DEFAULT_EXTERNES);

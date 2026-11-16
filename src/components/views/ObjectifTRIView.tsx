@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useDureeEtude } from '../../hooks/useDureeEtude';
 import { useProjectStore } from '../../store/projectStore';
 import { computeFinancialResult, fmtFCFA } from '../../lib/financial-statements-engine';
 import { computeLevers, type LeverResult } from '../../lib/goal-seek';
@@ -53,7 +54,7 @@ export function ObjectifTRIView() {
   }, [prod]);
   const settings = readSettings();
   const taux = settings.tauxActualisation / 100;
-  const horizon = settings.dureeEtude;
+  const horizon = useDureeEtude();
 
   const currentResult = useMemo(
     () => computeFinancialResult(hypotheses, investments, financement, sectorCode, taux, horizon, productionData),

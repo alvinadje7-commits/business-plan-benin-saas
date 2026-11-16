@@ -142,7 +142,23 @@ export const useProjectStore = create<ProjectState>()(
       })),
       addInvestment: (inv) => set((s) => ({ investments: [...s.investments, inv] })),
       removeInvestment: (id) => set((s) => ({ investments: s.investments.filter((i) => i.id !== id) })),
-      updateFinancement: (k, v) => set((s) => ({ financement: { ...s.financement, [k]: v } })),
+      updateFinancement: (k, v) => set((s) => {
+        const nextFin = { ...s.financement, [k]: v };
+        // Sync durée d'étude si empruntDuree change
+        if (k === 'empruntDuree') {
+          const n = Number(v || 0);
+          const years = isFinite(n) && n > 0 ? Math.max(1, Math.ceil(n)) : 7;
+          const nextHyp = { ...s.hypotheses, dureeEtude: years };
+          // Sync bpb-settings (best effort)
+          try {
+            const raw = JSON.parse(localStorage.getItem('bpb-settings') || '{}');
+            raw.dureeEtude = years;
+            localStorage.setItem('bpb-settings', JSON.stringify(raw));
+          } catch {}
+          return { financement: nextFin, hypotheses: nextHyp };
+        }
+        return { financement: nextFin };
+      }),
 
       applySectorTemplate: (code, variantKey) => {
         const sectorCfg = getSectorConfig(code);

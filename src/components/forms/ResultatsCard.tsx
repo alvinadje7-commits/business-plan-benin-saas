@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useDureeEtude } from '../../hooks/useDureeEtude';
 import { KpiCard } from "../ui/KpiCard";
 import { useProjectStore } from "../../store/projectStore";
 import { useProductionModel } from '../../hooks/useProductionModel';
@@ -42,9 +43,10 @@ export function ResultatsCard(_props: Props = {}) {
     } catch { return { tauxActualisation: 6, dureeEtude: 7 }; }
   })();
   const investments = useProjectStore((s) => s.investments);
+  const dureeEtude = useDureeEtude();
   const financement = useProjectStore((s) => s.financement);
   const result = useMemo(
-    () => computeFinancialResult(hypotheses, investments, financement, sectorCode, settingsResultats.tauxActualisation / 100, settingsResultats.dureeEtude, productionData),
+    () => computeFinancialResult(hypotheses, investments, financement, sectorCode, settingsResultats.tauxActualisation / 100, dureeEtude, productionData),
     [hypotheses, investments, financement, sectorCode, productionData],
   );
   const { cr, bilan, tafire, tresorerie, kpis } = result;

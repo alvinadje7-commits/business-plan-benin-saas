@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useDureeEtude } from '../hooks/useDureeEtude';
 import { KpiCard } from './ui/KpiCard';
 import { RentabiliteDetailCard } from './RentabiliteDetailCard';
 import { CaChart } from './charts/CaChart';
@@ -31,6 +32,7 @@ export function Dashboard() {
   const sectorVariant = useProjectStore((s) => s.sectorVariant);
 
   const settings = readSettings();
+  const dureeEtude = useDureeEtude();
   const prod = useProductionModel();
   const productionData = useMemo(() => {
     if (!prod) return undefined;
@@ -43,9 +45,9 @@ export function Dashboard() {
   const { kpis } = useMemo(
     () => computeFinancialResult(
       hypotheses, investments, financement, sectorCode,
-      settings.tauxActualisation / 100, settings.dureeEtude,
+      settings.tauxActualisation / 100, dureeEtude,
     ),
-    [hypotheses, investments, financement, sectorCode, settings.tauxActualisation, settings.dureeEtude, productionData],
+    [hypotheses, investments, financement, sectorCode, settings.tauxActualisation, dureeEtude, productionData],
   );
 
   const sector = getSectorConfig(sectorCode);

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useDureeEtude } from './useDureeEtude';
 import { useProjectStore } from '../store/projectStore';
 import { getProductionModel } from '../lib/production/registry';
 
@@ -8,10 +9,11 @@ export function useProductionModel() {
   const sectorValues = useProjectStore((s) => s.sectorValues);
   const hypotheses = useProjectStore((s) => s.hypotheses);
 
+  const durationYears = useDureeEtude();
+
   return useMemo(() => {
     if (!sectorCode) return null;
     const model = getProductionModel(sectorCode, sectorVariant);
-    const durationYears = (hypotheses as { dureeEtude?: number })?.dureeEtude ?? 7;
     const ctx = { sectorCode, sectorValues, durationYears };
     return {
       model,
@@ -22,5 +24,5 @@ export function useProductionModel() {
       technical: model.getTechnicalSheet(ctx),
       kpis: model.getSectorKPIs(ctx),
     };
-  }, [sectorCode, sectorVariant, sectorValues, hypotheses]);
+  }, [sectorCode, sectorVariant, sectorValues, hypotheses, durationYears]);
 }

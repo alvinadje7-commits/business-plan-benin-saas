@@ -166,8 +166,7 @@ export function ParametresView() {
           <div>
             <label className="text-xs font-medium text-slate-700 block mb-1">Durée de l'étude</label>
             <div className="relative">
-              <input type="number" min={1} max={15} value={settings.dureeEtude}
-                onChange={(e) => update('dureeEtude', Number(e.target.value))}
+              <input type="number" min={1} max={15} value={settings.dureeEtude} disabled readOnly
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">ans</span>
             </div>

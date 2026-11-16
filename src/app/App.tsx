@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useDureeEtude } from '../hooks/useDureeEtude';
 import { useProjectStore } from '../store/projectStore';
 import { SECTORS } from '../lib/mockup-data';
 import { Dashboard } from '../components/Dashboard';
@@ -119,10 +120,7 @@ export default function App() {
     const t = setTimeout(() => setIsRecalcul(false), 700);
     return () => clearTimeout(t);
   }, [hypotheses, investments, financement, selectedSector]);
-  const dureeEtude = (() => {
-    try { return Number(JSON.parse(localStorage.getItem('bpb-settings') || '{}').dureeEtude ?? 7); }
-    catch { return 7; }
-  })();
+  const dureeEtude = useDureeEtude();
 
   const saveProject = async () => {
     try {
