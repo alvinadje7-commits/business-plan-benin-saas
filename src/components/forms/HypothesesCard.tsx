@@ -44,6 +44,7 @@ export function HypothesesCard({ onValidate }: Props) {
   const sig = computeSIG(h);
   const bfr = computeBFR(h, sig.ca);
   const moyenneSaison = h.saisonnalite.reduce((s, v) => s + v, 0) / 12;
+  const caMensuelSaisonnalise = h.caMensuel * moyenneSaison;
   const caA2 = sig.ca * (1 + h.croissanceA2 / 100);
   const caA3 = caA2 * (1 + h.croissanceA3 / 100);
 
@@ -239,9 +240,9 @@ export function HypothesesCard({ onValidate }: Props) {
       {/* Croissance & saisonnalité */}
       <FormSection title="Croissance & saisonnalité" icon="📈">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <FormField label="CA mensuel calculé (A1)" unit="FCFA" hint="Dérivé du secteur">
+          <FormField label="CA mensuel (moy. saison)" unit="FCFA" hint="Dérivé du secteur">
             <div className={`${inputClass} bg-slate-50 font-semibold text-slate-700`}>
-              {fmtFCFA(h.caMensuel)}
+              {fmtFCFA(caMensuelSaisonnalise)}
             </div>
           </FormField>
           <FormField label="Croissance A2" unit="%" required>

@@ -402,7 +402,7 @@ function NotesTab({ hypotheses, investments }: { hypotheses: Hypotheses; investm
           <div>
               <h4 className="font-semibold text-slate-900 mb-1">3. Hypothèses clés</h4>
             <ul className="list-disc list-inside text-slate-600 space-y-0.5">
-              <li>CA mensuel cible : <b>{fmtFCFA(hypotheses.caMensuel)} FCFA</b></li>
+              <li>CA mensuel moyen (saisonn.) : <b>{fmtFCFA(hypotheses.caMensuel * (hypotheses.saisonnalite.reduce((a, b) => a + b, 0) / 12))} FCFA</b></li>
               <li>Croissance A2 / A3 : <b>{hypotheses.croissanceA2}%</b> / <b>{hypotheses.croissanceA3}%</b></li>
               <li>Achats consommés : <b>{hypotheses.pctAchats}%</b> du CA</li>
               <li>Charges externes : <b>{hypotheses.pctChargesExt}%</b> du CA</li>
