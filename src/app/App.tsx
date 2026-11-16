@@ -22,7 +22,7 @@ type View = 'objectif' | 'dashboard' | 'projects' | 'assistant' | 'financial' | 
 const NAV_ITEMS: { id: View; label: string; icon: string; count?: number }[] = [
   { id: 'objectif', label: 'Objectif TRI', icon: '🎯' },
   { id: 'dashboard', label: 'Tableau de bord', icon: '📊' },
-  { id: 'projects', label: 'Projets', icon: '📁', count: 12 },
+  { id: 'projects', label: 'Projets', icon: '📁' },
   { id: 'assistant', label: 'Assistant Business Plan', icon: '🧭' },
   { id: 'financial', label: 'États financiers', icon: '📑' },
   { id: 'scenarios', label: 'Scénarios', icon: '🔀' },
@@ -46,6 +46,61 @@ export default function App() {
   const isSaving = useProjectStore((s) => s.isSaving);
 
   const projectName = useProjectStore((s) => s.info.projectName);
+
+  // ── Sidebar dynamique ──
+  const promoterName = useProjectStore((s) => s.info.promoterName);
+  const promoterRole = useProjectStore((s) => s.info.currentRole);
+  const [orgSettings, setOrgSettings] = useState<{ organisation: string; rccm: string; ifu: string; devise: string }>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem('bpb-settings') || '{}');
+      return {
+        organisation: raw.organisation || 'Mon Organisation',
+        rccm: raw.rccm || '—',
+        ifu: raw.ifu || '—',
+        devise: raw.devise || 'XOF',
+      };
+    } catch {
+      return { organisation: 'Mon Organisation', rccm: '—', ifu: '—', devise: 'XOF' };
+    }
+  });
+  // Re-lire bpb-settings quand la vue change (retour de Paramètres)
+  useEffect(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem('bpb-settings') || '{}');
+      setOrgSettings({
+        organisation: raw.organisation || 'Mon Organisation',
+        rccm: raw.rccm || '—',
+        ifu: raw.ifu || '—',
+        devise: raw.devise || 'XOF',
+      });
+    } catch {}
+  }, [view]);
+
+  // ── Compteur projets (API + localStorage) ──
+  const [projectsCount, setProjectsCount] = useState(0);
+  useEffect(() => {
+    const local = (() => {
+      try { return JSON.parse(localStorage.getItem('bpb-local-projects') || '[]').length; }
+      catch { return 0; }
+    })();
+    let cancelled = false;
+    fetch('/api/projects')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => { if (!cancelled) setProjectsCount(list.length + local); })
+      .catch(() => { if (!cancelled) setProjectsCount(local); });
+    return () => { cancelled = true; };
+  }, [view]);
+
+  // ── Nav items dynamiques (count projets) ──
+  const navItems = NAV_ITEMS.map((item) =>
+    item.id === 'projects' ? { ...item, count: projectsCount } : item
+  );
+
+  // ── Initiales organisation + promoteur ──
+  const orgInitials = (orgSettings.organisation || 'B').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || 'B';
+  const promoterDisplay = promoterName || 'Utilisateur';
+  const promoterInitials = promoterDisplay.split(/\s+/).filter(Boolean).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || 'UT';
+  const promoterRoleDisplay = promoterRole || 'Gérant';
   const selectedSector = useProjectStore((s) => s.sectorCode);
   const sectorVariant = useProjectStore((s) => s.sectorVariant);
   const setSelectedSector = useProjectStore((s) => s.setSelectedSector);
@@ -112,16 +167,17 @@ export default function App() {
       <aside className="w-[260px] bg-[#0F172A] text-white flex flex-col fixed inset-y-0 left-0 z-40">
         <div className="px-4 py-4 border-b border-white/10">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#10B981] flex items-center justify-center font-bold text-[#0F172A] text-sm">B</div>
+            <div className="w-8 h-8 rounded-lg bg-[#10B981] flex items-center justify-center font-bold text-[#0F172A] text-sm">{orgInitials}</div>
             <div>
               <div className="font-semibold tracking-tight text-xs">BENIN BUSINESS PLAN</div>
-              <div className="text-[9px] text-white/60 uppercase tracking-widest">SaaS • OHADA • XOF</div>
+              <div className="text-[9px] text-white/60 uppercase tracking-widest">SaaS • OHADA • {orgSettings.devise}</div>
             </div>
           </div>
           <div className="mt-3 p-2.5 rounded-lg bg-white/5 border border-white/10">
             <div className="text-[9px] text-white/50 uppercase">Organisation</div>
-            <div className="font-medium text-xs mt-0.5">Cabinet Expert Bénin</div>
-            <div className="text-[10px] text-white/60 mt-0.5 truncate">RCCM: RB/COT/23 B 12345</div>
+            <div className="font-medium text-xs mt-0.5 truncate" title={orgSettings.organisation}>{orgSettings.organisation}</div>
+            <div className="text-[10px] text-white/60 mt-0.5 truncate" title={orgSettings.rccm}>RCCM: {orgSettings.rccm}</div>
+            <div className="text-[10px] text-white/60 truncate" title={orgSettings.ifu}>IFU: {orgSettings.ifu}</div>
             <div className="mt-2 flex items-center gap-1.5">
               <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] border border-emerald-500/30">● Actif</span>
               <span className="text-[10px] text-white/50">SYSCOHADA</span>
@@ -130,7 +186,7 @@ export default function App() {
         </div>
 
         <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const isActive = view === item.id;
             return (
               <div
@@ -155,11 +211,20 @@ export default function App() {
 
           <div className="mt-3 p-2.5 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/20">
             <div className="text-[11px] font-medium">Moteur sectoriel</div>
-            <div className="text-[10px] text-white/70 mt-0.5">12 secteurs • Formules OHADA</div>
+            <div className="text-[10px] text-white/70 mt-0.5">{SECTORS.length} secteurs • Formules OHADA</div>
             <VariantBadge sector={getSectorConfig(selectedSector)} variantKey={sectorVariant} />
-            <div className="mt-2 grid grid-cols-4 gap-1">
-              {SECTORS.slice(0, 8).map((s) => (
-                <div key={s.code} className="w-6 h-6 rounded bg-white/10 flex items-center justify-center text-[11px]">
+            <div className="mt-2 grid grid-cols-5 gap-1">
+              {SECTORS.map((s) => (
+                <div
+                  key={s.code}
+                  title={s.name}
+                  className={`w-6 h-6 rounded flex items-center justify-center text-[11px] transition cursor-pointer ${
+                    s.code === selectedSector
+                      ? 'bg-emerald-500 text-[#0F172A] font-bold ring-1 ring-white/60'
+                      : 'bg-white/10 hover:bg-white/20'
+                  }`}
+                  onClick={() => setSelectedSector(s.code)}
+                >
                   {s.icon}
                 </div>
               ))}
@@ -168,10 +233,10 @@ export default function App() {
         </nav>
 
         <div className="p-3 border-t border-white/10 flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-white text-[#0F172A] flex items-center justify-center font-semibold text-xs">AK</div>
+          <div className="w-7 h-7 rounded-full bg-white text-[#0F172A] flex items-center justify-center font-semibold text-xs">{promoterInitials}</div>
           <div className="min-w-0">
-            <div className="text-xs font-medium truncate">Armand K.</div>
-            <div className="text-[10px] text-white/60 truncate">Analyste • Admin</div>
+            <div className="text-xs font-medium truncate" title={promoterDisplay}>{promoterDisplay}</div>
+            <div className="text-[10px] text-white/60 truncate" title={promoterRoleDisplay}>{promoterRoleDisplay} • Promoteur</div>
           </div>
         </div>
       </aside>
