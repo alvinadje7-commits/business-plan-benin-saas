@@ -6,7 +6,7 @@ import type { Investment } from '../types/project';
 export interface SectorField {
   key: string;
   label: string;
-  type: 'integer' | 'currency' | 'percent' | 'decimal';
+  type: 'integer' | 'currency' | 'percent' | 'decimal' | 'boolean';
   unit?: string;
   default: number;
   group?: string;         // id du groupe (optionnel — rétrocompat)
@@ -84,6 +84,7 @@ const G_COMMERCIAL: SectorFieldGroup = { id: 'commercial', label: 'Commercial / 
 const G_CHARGES: SectorFieldGroup = { id: 'charges', label: "Charges d'exploitation", icon: '📉', description: 'Matières, énergie, maintenance, transport' };
 const G_RH: SectorFieldGroup = { id: 'rh', label: 'Ressources humaines', icon: '👥', description: 'Effectif, salaires, charges sociales' };
 const G_REGLEMENTAIRE: SectorFieldGroup = { id: 'reglementaire', label: 'Réglementaire & taxes', icon: '📋', description: 'Licences, autorisations, taxes sectorielles' };
+const G_COMPOSANTS: SectorFieldGroup = { id: 'composants', label: 'Composants activables', icon: '🧩', description: 'Cochez les composants du programme complexe' };
 
 /* ============================================================
    LES 13 SECTEURS
@@ -491,13 +492,13 @@ const IMMOBILIER_VARIANTS: Record<string, SectorVariant> = {
     description: "Programme combiné : cochez les composants (logements, bureaux, hôtel, restaurant, piscine, salle de fête, salle de réunion)",
     fields: [
       // ── Activateurs ──
-      { key: 'activeLogements', label: 'Logements (1 = oui, 0 = non)', type: 'integer', default: 1, group: 'production', min: 0, max: 1 },
-      { key: 'activeBureaux', label: 'Bureaux (1 = oui, 0 = non)', type: 'integer', default: 1, group: 'production', min: 0, max: 1 },
-      { key: 'activeHotel', label: 'Hôtel / hébergement (1 = oui, 0 = non)', type: 'integer', default: 0, group: 'production', min: 0, max: 1 },
-      { key: 'activeRestaurant', label: 'Restaurant (1 = oui, 0 = non)', type: 'integer', default: 0, group: 'production', min: 0, max: 1 },
-      { key: 'activePiscine', label: 'Piscine (1 = oui, 0 = non)', type: 'integer', default: 0, group: 'production', min: 0, max: 1 },
-      { key: 'activeSalleFete', label: 'Salle de fête (1 = oui, 0 = non)', type: 'integer', default: 0, group: 'production', min: 0, max: 1 },
-      { key: 'activeSalleReunion', label: 'Salle de réunion (1 = oui, 0 = non)', type: 'integer', default: 0, group: 'production', min: 0, max: 1 },
+      { key: 'activeLogements', label: 'Logements', type: 'boolean', default: 1, group: 'composants' },
+      { key: 'activeBureaux', label: 'Bureaux', type: 'boolean', default: 1, group: 'composants' },
+      { key: 'activeHotel', label: 'Hôtel / hébergement', type: 'boolean', default: 0, group: 'composants' },
+      { key: 'activeRestaurant', label: 'Restaurant', type: 'boolean', default: 0, group: 'composants' },
+      { key: 'activePiscine', label: 'Piscine', type: 'boolean', default: 0, group: 'composants' },
+      { key: 'activeSalleFete', label: 'Salle de fête', type: 'boolean', default: 0, group: 'composants' },
+      { key: 'activeSalleReunion', label: 'Salle de réunion', type: 'boolean', default: 0, group: 'composants' },
 
       // ── Logements (visible si activeLogements === 1) ──
       { key: 'nbLogements', label: 'Nombre de logements', type: 'integer', default: 15, group: 'production', min: 1, max: 300, visibleIf: (v) => v.activeLogements === 1 },
@@ -1390,7 +1391,7 @@ export const SECTORS: SectorConfig[] = [
     code: 'immobilier', name: 'Immobilier / Promotion',
     description: 'Programmes immobiliers — logements, bureaux, hôtel, complexes',
     icon: '🏢',
-    groups: [G_PRODUCTION, G_COMMERCIAL, G_CHARGES, G_RH, G_REGLEMENTAIRE],
+    groups: [G_COMPOSANTS, G_PRODUCTION, G_COMMERCIAL, G_CHARGES, G_RH, G_REGLEMENTAIRE],
     fields: [
       { key: 'coutTerrainTotal', label: 'Coût terrain / programme', type: 'currency', unit: 'FCFA', default: 50000000, group: 'charges' },
       { key: 'coutVRD', label: 'Coût VRD (voirie & réseaux)', type: 'currency', unit: 'FCFA', default: 30000000, group: 'charges' },

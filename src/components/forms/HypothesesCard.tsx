@@ -184,35 +184,53 @@ export function HypothesesCard({ onValidate }: Props) {
             defaultOpen={g.defaultOpen}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {g.fields.map((f) => (
-                <FormField
-                  key={f.key}
-                  label={f.label}
-                  unit={f.unit}
-                  hint={f.description}
-                  warning={
-                    f.outOfRange
-                      ? `Hors plage recommandée (${f.min ?? '—'} – ${f.max ?? '—'})`
-                      : undefined
-                  }
-                >
-                  <div className="relative">
-                    <input
-                      type="number"
-                      value={f.value}
-                      onChange={(e) => updateSectorValue(f.key, Number(e.target.value))}
-                      className={`${inputClass} ${
-                        f.outOfRange ? 'border-amber-400 focus:border-amber-500 focus:ring-amber-200' : ''
-                      }`}
-                    />
-                    {f.unit && (
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
-                        {f.unit}
-                      </span>
+              {g.fields.map((f) => {
+                const sectorField = activeFields.find((af) => af.key === f.key);
+                const isBool = sectorField?.type === 'boolean';
+                return (
+                  <FormField
+                    key={f.key}
+                    label={f.label}
+                    unit={f.unit}
+                    hint={f.description}
+                    warning={
+                      f.outOfRange
+                        ? `Hors plage recommandée (${f.min ?? '—'} – ${f.max ?? '—'})`
+                        : undefined
+                    }
+                  >
+                    {isBool ? (
+                      <label className="flex items-center gap-3 cursor-pointer select-none py-1">
+                        <input
+                          type="checkbox"
+                          checked={f.value === 1}
+                          onChange={(e) => updateSectorValue(f.key, e.target.checked ? 1 : 0)}
+                          className="w-5 h-5 rounded accent-emerald-500 cursor-pointer"
+                        />
+                        <span className="text-sm text-slate-700">
+                          {f.value === 1 ? '✅ Activé' : 'Désactivé'}
+                        </span>
+                      </label>
+                    ) : (
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={f.value}
+                          onChange={(e) => updateSectorValue(f.key, Number(e.target.value))}
+                          className={`${inputClass} ${
+                            f.outOfRange ? 'border-amber-400 focus:border-amber-500 focus:ring-amber-200' : ''
+                          }`}
+                        />
+                        {f.unit && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                            {f.unit}
+                          </span>
+                        )}
+                      </div>
                     )}
-                  </div>
-                </FormField>
-              ))}
+                  </FormField>
+                );
+              })}
             </div>
           </AccordionGroup>
         ))}

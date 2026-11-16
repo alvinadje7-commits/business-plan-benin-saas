@@ -191,27 +191,49 @@ export function SecteurCard({ onSelect }: Props) {
       {/* Champs sectoriels */}
       <FormSection title={`${hasVariants ? '4' : '3'}. Champs — ${sector.name}${variantLabel ? ' · ' + variantLabel : ''}`} icon="⚙️">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {activeFields.map((field) => (
-            <FormField key={field.key} label={field.label} unit={field.unit}>
-              <div className="relative">
-                <input
-                  type="number"
-                  value={previewValues[field.key] ?? field.default}
-                  onChange={(e) => {
-                    if (!isApplied) return;
-                    updateSectorValue(field.key, Number(e.target.value));
-                  }}
-                  disabled={!isApplied}
-                  className={`${inputClass} ${!isApplied ? 'opacity-60 cursor-not-allowed' : ''}`}
-                />
-                {field.unit && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
-                    {field.unit}
-                  </span>
+          {activeFields.map((field) => {
+            const isBool = field.type === 'boolean';
+            const boolValue = (previewValues[field.key] ?? field.default) === 1;
+            return (
+              <FormField key={field.key} label={field.label} unit={field.unit}>
+                {isBool ? (
+                  <label className={`flex items-center gap-3 select-none py-1 ${!isApplied ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+                    <input
+                      type="checkbox"
+                      checked={boolValue}
+                      onChange={(e) => {
+                        if (!isApplied) return;
+                        updateSectorValue(field.key, e.target.checked ? 1 : 0);
+                      }}
+                      disabled={!isApplied}
+                      className="w-5 h-5 rounded accent-emerald-500 cursor-pointer"
+                    />
+                    <span className="text-sm text-slate-700">
+                      {boolValue ? '✅ Activé' : 'Désactivé'}
+                    </span>
+                  </label>
+                ) : (
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={previewValues[field.key] ?? field.default}
+                      onChange={(e) => {
+                        if (!isApplied) return;
+                        updateSectorValue(field.key, Number(e.target.value));
+                      }}
+                      disabled={!isApplied}
+                      className={`${inputClass} ${!isApplied ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    />
+                    {field.unit && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                        {field.unit}
+                      </span>
+                    )}
+                  </div>
                 )}
-              </div>
-            </FormField>
-          ))}
+              </FormField>
+            );
+          })}
         </div>
         {!isApplied && (
           <p className="text-[11px] text-slate-500">
