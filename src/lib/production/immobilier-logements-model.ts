@@ -1,5 +1,5 @@
 // ============================================================
-// Immobilier — LOGEMENTS (vente étalée sur la durée du programme)
+// Immobilier — LOGEMENTS (loyers récurrents sur toute la durée)
 // ============================================================
 import type { ProductionModel, CostLine } from './types';
 import { num } from './types';
@@ -8,64 +8,60 @@ export const logementsModel: ProductionModel = {
   computeMonthlyRevenue(ctx) {
     const nMonths = ctx.durationYears * 12;
     const nbLogements = num(ctx, 'nbLogements', 20);
-    const prixUnitaire = num(ctx, 'prixUnitaireLogement', 25000000);
-    const dureeProg = Math.max(1, Math.round(num(ctx, 'dureeProgramme', 24)));
-    const caTotal = nbLogements * prixUnitaire;
-    const venduParMois = caTotal / dureeProg;
-    return Array.from({ length: nMonths }, (_, i) => (i < dureeProg ? venduParMois : 0));
+    const surfaceMoy = num(ctx, 'surfaceMoyenne', 100);
+    const loyerM2 = num(ctx, 'loyerM2MoisLogement', 5000);
+    const tauxOcc = num(ctx, 'tauxOccupationLogement', 85) / 100;
+    const loyerMensuel = nbLogements * surfaceMoy * tauxOcc * loyerM2;
+    return new Array(nMonths).fill(loyerMensuel);
   },
   computeMonthlyVariableCosts(ctx): CostLine[] {
     const nMonths = ctx.durationYears * 12;
-    const nbLogements = num(ctx, 'nbLogements', 20);
-    const coutConstructionLogement = num(ctx, 'coutConstructionLogement', 15000000);
-    const coutTerrain = num(ctx, 'coutTerrainTotal', 50000000);
-    const coutVRD = num(ctx, 'coutVRD', 30000000);
-    const dureeProg = Math.max(1, Math.round(num(ctx, 'dureeProgramme', 24)));
-    const coutTotal = nbLogements * coutConstructionLogement + coutTerrain + coutVRD;
-    const coutParMois = coutTotal / dureeProg;
+    const revenue = this.computeMonthlyRevenue(ctx);
     return [
       {
-        key: 'construction',
-        label: 'Construction + VRD + terrain (logements)',
-        values: Array.from({ length: nMonths }, (_, i) => (i < dureeProg ? coutParMois : 0)),
+        key: 'maintenance',
+        label: 'Maintenance immeuble (5% CA)',
+        values: revenue.map((r) => r * 0.05),
       },
     ];
   },
   computeMonthlyQuantities(ctx) {
     const nMonths = ctx.durationYears * 12;
     const nbLogements = num(ctx, 'nbLogements', 20);
-    const dureeProg = Math.max(1, Math.round(num(ctx, 'dureeProgramme', 24)));
-    const vendusParMois = nbLogements / dureeProg;
-    return {
-      'Logements vendus': Array.from({ length: nMonths }, (_, i) => (i < dureeProg ? vendusParMois : 0)),
-    };
+    const surfaceMoy = num(ctx, 'surfaceMoyenne', 100);
+    const tauxOcc = num(ctx, 'tauxOccupationLogement', 85) / 100;
+    const surfaceLouee = nbLogements * surfaceMoy * tauxOcc;
+    return { 'Surface louée (m²)': new Array(nMonths).fill(surfaceLouee) };
   },
   getTechnicalSheet(ctx) {
     const nbLogements = num(ctx, 'nbLogements', 20);
-    const prixUnitaire = num(ctx, 'prixUnitaireLogement', 25000000);
-    const dureeProg = Math.max(1, Math.round(num(ctx, 'dureeProgramme', 24)));
-    const surface = num(ctx, 'surfaceMoyenne', 100);
+    const surfaceMoy = num(ctx, 'surfaceMoyenne', 100);
+    const loyerM2 = num(ctx, 'loyerM2MoisLogement', 5000);
+    const tauxOcc = num(ctx, 'tauxOccupationLogement', 85);
     return [
       { label: 'Nombre de logements', value: String(nbLogements) },
-      { label: 'Surface moyenne', value: surface + ' m²' },
-      { label: 'Prix vente / logement', value: Math.round(prixUnitaire).toLocaleString('fr-FR') + ' FCFA' },
-      { label: 'Durée du programme', value: dureeProg + ' mois' },
+      { label: 'Surface moyenne', value: surfaceMoy + ' m²' },
+      { label: 'Loyer / m² / mois', value: Math.round(loyerM2).toLocaleString('fr-FR') + ' FCFA' },
+      { label: "Taux d'occupation", value: tauxOcc + ' %' },
     ];
   },
   getSectorKPIs(ctx) {
     const nbLogements = num(ctx, 'nbLogements', 20);
-    const prixUnitaire = num(ctx, 'prixUnitaireLogement', 25000000);
-    const caTotal = nbLogements * prixUnitaire;
+    const surfaceMoy = num(ctx, 'surfaceMoyenne', 100);
+    const loyerM2 = num(ctx, 'loyerM2MoisLogement', 5000);
+    const tauxOcc = num(ctx, 'tauxOccupationLogement', 85);
     const coutConstruction = num(ctx, 'coutConstructionLogement', 15000000);
     const coutTerrain = num(ctx, 'coutTerrainTotal', 50000000);
     const coutVRD = num(ctx, 'coutVRD', 30000000);
     const coutTotal = nbLogements * coutConstruction + coutTerrain + coutVRD;
-    const margeBrutePct = caTotal > 0 ? ((caTotal - coutTotal) / caTotal) * 100 : 0;
+    const surfaceLouee = nbLogements * surfaceMoy * (tauxOcc / 100);
+    const caAnnuel = surfaceLouee * loyerM2 * 12;
+    const rendementBrut = coutTotal > 0 ? (caAnnuel / coutTotal) * 100 : 0;
     return [
-      { label: 'Marge brute', value: margeBrutePct.toFixed(1) + ' %', unit: '%' },
-      { label: 'CA programme', value: Math.round(caTotal), unit: 'FCFA' },
-      { label: 'Coût total', value: Math.round(coutTotal), unit: 'FCFA' },
-      { label: 'Marge brute (FCFA)', value: Math.round(caTotal - coutTotal), unit: 'FCFA' },
+      { label: 'Rendement brut', value: rendementBrut.toFixed(1) + ' %', unit: '%' },
+      { label: 'Loyers annuels', value: Math.round(caAnnuel), unit: 'FCFA' },
+      { label: 'Loyer mensuel', value: Math.round(surfaceLouee * loyerM2), unit: 'FCFA' },
+      { label: 'Surface louée', value: Math.round(surfaceLouee), unit: 'm²' },
     ];
   },
 };

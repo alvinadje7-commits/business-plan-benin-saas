@@ -275,43 +275,45 @@ const IMMOBILIER_VARIANTS: Record<string, SectorVariant> = {
     key: 'logements',
     icon: '🏠',
     label: 'Logements',
-    description: "Promotion résidentielle pure (villas, appartements) — vente",
+    description: "Promotion résidentielle locative — loyers récurrents",
     fields: [
       { key: 'nbLogements', label: 'Nombre de logements', type: 'integer', default: 20, group: 'production', min: 1, max: 500 },
       { key: 'surfaceMoyenne', label: 'Surface moyenne / logement', type: 'decimal', unit: 'm²', default: 100, group: 'production', min: 30, max: 500 },
-      { key: 'prixUnitaireLogement', label: 'Prix vente / logement', type: 'currency', unit: 'FCFA', default: 25000000, group: 'commercial' },
-      { key: 'tauxPrelocation', label: 'Taux de pré-location', type: 'percent', unit: '%', default: 60, group: 'commercial', min: 0, max: 100 },
-      { key: 'delaiVenteMoyen', label: 'Délai de vente moyen', type: 'integer', unit: 'mois', default: 6, group: 'commercial', min: 1, max: 24 },
+      { key: 'loyerM2MoisLogement', label: 'Loyer / m² / mois (logements)', type: 'currency', unit: 'FCFA', default: 5000, group: 'commercial' },
+      { key: 'tauxOccupationLogement', label: "Taux d'occupation logements", type: 'percent', unit: '%', default: 85, group: 'commercial', min: 50, max: 100 },
       { key: 'coutConstructionLogement', label: 'Coût construction / logement', type: 'currency', unit: 'FCFA', default: 15000000, group: 'charges' },
     ],
     buildHypotheses: (v) => {
-      const caTotal = v.nbLogements * v.prixUnitaireLogement;
+      const surfaceTotale = v.nbLogements * v.surfaceMoyenne;
+      const surfaceLouee = surfaceTotale * (v.tauxOccupationLogement / 100);
+      const loyerMensuel = surfaceLouee * v.loyerM2MoisLogement;
+      const caAnnuel = loyerMensuel * 12;
+      const caMensuel = loyerMensuel;
       const dureeAns = Math.max(1, v.dureeProgramme / 12);
-      const caAnnuel = caTotal / dureeAns;
-      const caMensuel = caAnnuel / 12;
-      const coutTotal = v.coutTerrainTotal + v.nbLogements * v.coutConstructionLogement + v.coutVRD;
-      const pctAchats = caTotal > 0 ? (coutTotal / caTotal) * 100 : 65;
       const fraisPct = (v.fraisCommerciaux + v.fraisNotaire) / 100;
       const chargesExt = caAnnuel * fraisPct + v.taxesFoncieres + (v.permisConstruire + v.agrementPromoteur + v.assuranceProgramme) / dureeAns;
       const masseSal = v.nbEmployes * v.salaireMoyen * 12 * (1 + v.chargesSociales / 100);
-      return { caMensuel, pctAchats, pctChargesExt: caAnnuel > 0 ? (chargesExt / caAnnuel) * 100 : 10, masseSalariale: masseSal, joursStockage: 0, joursClients: 60, joursFournisseurs: 30 };
+      return { caMensuel, pctAchats: 5, pctChargesExt: caAnnuel > 0 ? (chargesExt / caAnnuel) * 100 : 12, masseSalariale: masseSal, joursStockage: 0, joursClients: 30, joursFournisseurs: 30 };
     },
     investmentTemplates: [
       { label: 'Acquisition terrain', category: 'Corporel', cost: 50_000_000, startDate: DEFAULT_INVEST_DATE, duration: 30, mode: 'Linéaire' },
-      { label: 'Construction lotissement (tranche 1)', category: 'Corporel', cost: 150_000_000, startDate: DEFAULT_INVEST_DATE, duration: 30, mode: 'Linéaire' },
+      { label: 'Construction logements (tranche 1)', category: 'Corporel', cost: 300_000_000, startDate: DEFAULT_INVEST_DATE, duration: 30, mode: 'Linéaire' },
       { label: 'Voirie & VRD', category: 'Corporel', cost: 30_000_000, startDate: DEFAULT_INVEST_DATE, duration: 20, mode: 'Linéaire' },
-      { label: 'Bureau de vente', category: 'Corporel', cost: 5_000_000, startDate: DEFAULT_INVEST_DATE, duration: 10, mode: 'Linéaire' },
+      { label: 'Aménagement & mobilier', category: 'Corporel', cost: 15_000_000, startDate: DEFAULT_INVEST_DATE, duration: 10, mode: 'Linéaire' },
     ],
-    chargeRubriques: ['Terrain', 'Construction logements', 'VRD', 'Frais commerciaux', 'Notaire & actes', 'Taxes foncières', 'Personnel', 'Permis & agréments'],
+    chargeRubriques: ['Terrain', 'Construction logements', 'VRD', 'Maintenance (5% CA)', 'Frais commerciaux', 'Notaire & actes', 'Taxes foncières', 'Personnel', 'Permis & agréments'],
     kpisSpecifiques: (v) => {
-      const caTotal = v.nbLogements * v.prixUnitaireLogement;
+      const surfaceTotale = v.nbLogements * v.surfaceMoyenne;
+      const surfaceLouee = surfaceTotale * (v.tauxOccupationLogement / 100);
+      const loyerMensuel = surfaceLouee * v.loyerM2MoisLogement;
+      const caAnnuel = loyerMensuel * 12;
       const coutTotal = v.coutTerrainTotal + v.nbLogements * v.coutConstructionLogement + v.coutVRD;
-      const margeBrute = caTotal > 0 ? ((caTotal - coutTotal) / caTotal) * 100 : 0;
+      const rendementBrut = coutTotal > 0 ? (caAnnuel / coutTotal) * 100 : 0;
       return [
-        { label: 'Marge brute', value: margeBrute.toFixed(1), hint: '% (cible 20+)', color: margeBrute >= 20 ? 'accent' : 'danger' },
-        { label: 'CA programme', value: fmt(caTotal), hint: 'FCFA', color: 'accent' },
-        { label: 'Coût total', value: fmt(coutTotal), hint: 'FCFA', color: 'primary' },
-        { label: 'Durée', value: String(v.dureeProgramme), hint: 'mois', color: 'primary' },
+        { label: 'Rendement brut', value: rendementBrut.toFixed(1), hint: '% (cible 8+)', color: rendementBrut >= 8 ? 'accent' : 'danger' },
+        { label: 'Loyers annuels', value: fmt(caAnnuel), hint: 'FCFA', color: 'accent' },
+        { label: 'Loyer mensuel', value: fmt(loyerMensuel), hint: 'FCFA', color: 'primary' },
+        { label: 'Surface louée', value: String(Math.round(surfaceLouee)), hint: 'm²', color: 'primary' },
       ];
     },
   },
@@ -425,13 +427,12 @@ const IMMOBILIER_VARIANTS: Record<string, SectorVariant> = {
     key: 'logements_bureaux',
     icon: '🏘️',
     label: 'Logements + Bureaux',
-    description: "Programme combiné : logements vendus + bureaux loués (revenus récurrents)",
+    description: "Programme combiné locatif : logements et bureaux loués (revenus récurrents)",
     fields: [
       { key: 'nbLogements', label: 'Nombre de logements', type: 'integer', default: 15, group: 'production', min: 1, max: 300 },
       { key: 'surfaceMoyenne', label: 'Surface moyenne / logement', type: 'decimal', unit: 'm²', default: 90, group: 'production', min: 30, max: 300 },
-      { key: 'prixUnitaireLogement', label: 'Prix vente / logement', type: 'currency', unit: 'FCFA', default: 22000000, group: 'commercial' },
-      { key: 'tauxPrelocation', label: 'Taux de pré-location', type: 'percent', unit: '%', default: 60, group: 'commercial', min: 0, max: 100 },
-      { key: 'delaiVenteMoyen', label: 'Délai de vente moyen', type: 'integer', unit: 'mois', default: 6, group: 'commercial', min: 1, max: 24 },
+      { key: 'loyerM2MoisLogement', label: 'Loyer / m² / mois (logements)', type: 'currency', unit: 'FCFA', default: 5000, group: 'commercial' },
+      { key: 'tauxOccupationLogement', label: "Taux d'occupation logements", type: 'percent', unit: '%', default: 85, group: 'commercial', min: 50, max: 100 },
       { key: 'coutConstructionLogement', label: 'Coût construction / logement', type: 'currency', unit: 'FCFA', default: 13000000, group: 'charges' },
       { key: 'nbBureaux', label: 'Nombre de bureaux / plateaux', type: 'integer', default: 6, group: 'production', min: 1, max: 100 },
       { key: 'surfaceBureauMoyenne', label: 'Surface moyenne / bureau', type: 'decimal', unit: 'm²', default: 50, group: 'production', min: 15, max: 500 },
@@ -440,24 +441,21 @@ const IMMOBILIER_VARIANTS: Record<string, SectorVariant> = {
       { key: 'coutConstructionBureauM2', label: 'Coût construction bureau / m²', type: 'currency', unit: 'FCFA', default: 180000, group: 'charges' },
     ],
     buildHypotheses: (v) => {
-      const caLogementsTotal = v.nbLogements * v.prixUnitaireLogement;
+      const surfaceLogTotale = v.nbLogements * v.surfaceMoyenne;
+      const surfaceLogLouee = surfaceLogTotale * (v.tauxOccupationLogement / 100);
+      const loyerLogMensuel = surfaceLogLouee * v.loyerM2MoisLogement;
+      const caLogAnnuel = loyerLogMensuel * 12;
+      const surfaceBurTotale = v.nbBureaux * v.surfaceBureauMoyenne;
+      const surfaceBurLouee = surfaceBurTotale * (v.tauxOccupationBureau / 100);
+      const loyerBurMensuel = surfaceBurLouee * v.loyerM2MoisBureau;
+      const caBurAnnuel = loyerBurMensuel * 12;
+      const caAnnuel = caLogAnnuel + caBurAnnuel;
+      const caMensuel = loyerLogMensuel + loyerBurMensuel;
       const dureeAns = Math.max(1, v.dureeProgramme / 12);
-      const caLogementsAnnuel = caLogementsTotal / dureeAns;
-      const surfaceBureauTotale = v.nbBureaux * v.surfaceBureauMoyenne;
-      const surfaceLouee = surfaceBureauTotale * (v.tauxOccupationBureau / 100);
-      const loyerBureauxMensuel = surfaceLouee * v.loyerM2MoisBureau;
-      const caBureauxAnnuel = loyerBureauxMensuel * 12;
-      const caAnnuel = caLogementsAnnuel + caBureauxAnnuel;
-      const caMensuel = caAnnuel / 12;
-      const coutLogements = v.nbLogements * v.coutConstructionLogement;
-      const coutBureaux = surfaceBureauTotale * v.coutConstructionBureauM2;
-      const coutTotal = v.coutTerrainTotal + coutLogements + coutBureaux + v.coutVRD;
-      const caGlobal = caLogementsTotal + caBureauxAnnuel * dureeAns;
-      const pctAchats = caGlobal > 0 ? (coutTotal / caGlobal) * 100 : 65;
       const fraisPct = (v.fraisCommerciaux + v.fraisNotaire) / 100;
       const chargesExt = caAnnuel * fraisPct + v.taxesFoncieres + (v.permisConstruire + v.agrementPromoteur + v.assuranceProgramme) / dureeAns;
       const masseSal = v.nbEmployes * v.salaireMoyen * 12 * (1 + v.chargesSociales / 100);
-      return { caMensuel, pctAchats, pctChargesExt: caAnnuel > 0 ? (chargesExt / caAnnuel) * 100 : 12, masseSalariale: masseSal, joursStockage: 0, joursClients: 60, joursFournisseurs: 30 };
+      return { caMensuel, pctAchats: 5, pctChargesExt: caAnnuel > 0 ? (chargesExt / caAnnuel) * 100 : 12, masseSalariale: masseSal, joursStockage: 0, joursClients: 30, joursFournisseurs: 30 };
     },
     investmentTemplates: [
       { label: 'Acquisition terrain', category: 'Corporel', cost: 60_000_000, startDate: DEFAULT_INVEST_DATE, duration: 30, mode: 'Linéaire' },
@@ -466,25 +464,26 @@ const IMMOBILIER_VARIANTS: Record<string, SectorVariant> = {
       { label: 'Voirie & VRD', category: 'Corporel', cost: 25_000_000, startDate: DEFAULT_INVEST_DATE, duration: 20, mode: 'Linéaire' },
       { label: 'Bureau de vente & aménagement', category: 'Corporel', cost: 8_000_000, startDate: DEFAULT_INVEST_DATE, duration: 10, mode: 'Linéaire' },
     ],
-    chargeRubriques: ['Terrain', 'Construction logements', 'Construction bureaux', 'VRD', 'Frais commerciaux', 'Notaire & actes', 'Taxes foncières', 'Personnel', 'Maintenance immeubles', 'Permis & agréments'],
+    chargeRubriques: ['Terrain', 'Construction logements', 'Construction bureaux', 'VRD', 'Maintenance (5% CA)', 'Frais commerciaux', 'Notaire & actes', 'Taxes foncières', 'Personnel', 'Permis & agréments'],
     kpisSpecifiques: (v) => {
-      const caLogementsTotal = v.nbLogements * v.prixUnitaireLogement;
-      const surfaceBureauTotale = v.nbBureaux * v.surfaceBureauMoyenne;
-      const surfaceLouee = surfaceBureauTotale * (v.tauxOccupationBureau / 100);
-      const loyerBureauxMensuel = surfaceLouee * v.loyerM2MoisBureau;
-      const caBureauxAnnuel = loyerBureauxMensuel * 12;
-      const dureeAns = Math.max(1, v.dureeProgramme / 12);
-      const caLogementsAnnuel = caLogementsTotal / dureeAns;
-      const caAnnuel = caLogementsAnnuel + caBureauxAnnuel;
+      const surfaceLogTotale = v.nbLogements * v.surfaceMoyenne;
+      const surfaceLogLouee = surfaceLogTotale * (v.tauxOccupationLogement / 100);
+      const loyerLogMensuel = surfaceLogLouee * v.loyerM2MoisLogement;
+      const caLogAnnuel = loyerLogMensuel * 12;
+      const surfaceBurTotale = v.nbBureaux * v.surfaceBureauMoyenne;
+      const surfaceBurLouee = surfaceBurTotale * (v.tauxOccupationBureau / 100);
+      const loyerBurMensuel = surfaceBurLouee * v.loyerM2MoisBureau;
+      const caBurAnnuel = loyerBurMensuel * 12;
+      const caAnnuel = caLogAnnuel + caBurAnnuel;
+      const partLog = caAnnuel > 0 ? (caLogAnnuel / caAnnuel) * 100 : 0;
       return [
-        { label: 'CA logements', value: fmt(caLogementsTotal), hint: 'FCFA (total)', color: 'primary' },
-        { label: 'Loyers bureaux', value: fmt(caBureauxAnnuel), hint: 'FCFA/an', color: 'accent' },
-        { label: 'Part récurrent', value: caAnnuel > 0 ? ((caBureauxAnnuel / caAnnuel) * 100).toFixed(0) : '0', hint: '% CA (bureaux)', color: 'accent' },
-        { label: 'CA annuel total', value: fmt(caAnnuel), hint: 'FCFA', color: 'accent' },
+        { label: 'Loyers annuels', value: fmt(caAnnuel), hint: 'FCFA (total)', color: 'accent' },
+        { label: 'Part logements', value: partLog.toFixed(0), hint: '% CA', color: 'primary' },
+        { label: 'Loyer mensuel', value: fmt(loyerLogMensuel + loyerBurMensuel), hint: 'FCFA', color: 'primary' },
+        { label: 'Surface louée', value: String(Math.round(surfaceLogLouee + surfaceBurLouee)), hint: 'm²', color: 'primary' },
       ];
     },
   },
-
   complexe: {
     key: 'complexe',
     icon: '🏗️',
@@ -503,7 +502,8 @@ const IMMOBILIER_VARIANTS: Record<string, SectorVariant> = {
       // ── Logements (visible si activeLogements === 1) ──
       { key: 'nbLogements', label: 'Nombre de logements', type: 'integer', default: 15, group: 'production', min: 1, max: 300, visibleIf: (v) => v.activeLogements === 1 },
       { key: 'surfaceMoyenne', label: 'Surface moyenne / logement', type: 'decimal', unit: 'm²', default: 90, group: 'production', min: 30, max: 300, visibleIf: (v) => v.activeLogements === 1 },
-      { key: 'prixUnitaireLogement', label: 'Prix vente / logement', type: 'currency', unit: 'FCFA', default: 22000000, group: 'commercial', visibleIf: (v) => v.activeLogements === 1 },
+      { key: 'loyerM2MoisLogement', label: 'Loyer / m² / mois (logements)', type: 'currency', unit: 'FCFA', default: 5000, group: 'commercial', visibleIf: (v) => v.activeLogements === 1 },
+      { key: 'tauxOccupationLogement', label: "Taux d'occupation logements", type: 'percent', unit: '%', default: 85, group: 'commercial', min: 50, max: 100, visibleIf: (v) => v.activeLogements === 1 },
       { key: 'coutConstructionLogement', label: 'Coût construction / logement', type: 'currency', unit: 'FCFA', default: 13000000, group: 'charges', visibleIf: (v) => v.activeLogements === 1 },
 
       // ── Bureaux (visible si activeBureaux === 1) ──
@@ -540,9 +540,11 @@ const IMMOBILIER_VARIANTS: Record<string, SectorVariant> = {
     buildHypotheses: (v) => {
       const dureeAns = Math.max(1, v.dureeProgramme / 12);
 
-      // Logements (vente étalée)
-      const caLogementsTotal = v.activeLogements ? v.nbLogements * v.prixUnitaireLogement : 0;
-      const caLogementsAnnuel = caLogementsTotal / dureeAns;
+      // Logements (loyers récurrents)
+      const surfaceLogTotale = v.activeLogements ? v.nbLogements * v.surfaceMoyenne : 0;
+      const surfaceLogLouee = surfaceLogTotale * ((v.tauxOccupationLogement ?? 0) / 100);
+      const loyerLogMensuel = surfaceLogLouee * (v.loyerM2MoisLogement ?? 0);
+      const caLogementsAnnuel = v.activeLogements ? loyerLogMensuel * 12 : 0;
       const coutLogements = v.activeLogements ? v.nbLogements * v.coutConstructionLogement : 0;
 
       // Bureaux (loyers récurrents)
@@ -578,7 +580,7 @@ const IMMOBILIER_VARIANTS: Record<string, SectorVariant> = {
       const achatsAnnuel = coutExploitHotel + coutMatiereResto;
       // Coûts de construction amortis (capex ramené en % du CA sur la durée)
       const coutConstructionTotal = coutLogements + coutBureaux + coutHotel;
-      const caGlobal = caLogementsTotal + (caBureauxAnnuel + caHotelAnnuel + caRestoAnnuel + caPiscineAnnuel + caSalleFeteAnnuel + caSalleReunionAnnuel) * dureeAns;
+      const caGlobal = (caLogementsAnnuel + caBureauxAnnuel + caHotelAnnuel + caRestoAnnuel + caPiscineAnnuel + caSalleFeteAnnuel + caSalleReunionAnnuel) * dureeAns;
       const pctAchats = caGlobal > 0 ? ((coutConstructionTotal + achatsAnnuel * dureeAns) / caGlobal) * 100 : 65;
 
       const fraisPct = ((v.fraisCommerciaux ?? 0) + (v.fraisNotaire ?? 0)) / 100;
@@ -611,7 +613,9 @@ const IMMOBILIER_VARIANTS: Record<string, SectorVariant> = {
       const activeCount = ['activeLogements', 'activeBureaux', 'activeHotel', 'activeRestaurant', 'activePiscine', 'activeSalleFete', 'activeSalleReunion'].filter((k) => v[k] === 1).length;
       // Calcul simplifié pour KPIs
       const dureeAns = Math.max(1, v.dureeProgramme / 12);
-      const caLogementsAnnuel = v.activeLogements ? (v.nbLogements * v.prixUnitaireLogement) / dureeAns : 0;
+      const surfaceLogTotale = v.activeLogements ? v.nbLogements * v.surfaceMoyenne : 0;
+      const surfaceLogLouee = surfaceLogTotale * ((v.tauxOccupationLogement ?? 0) / 100);
+      const caLogementsAnnuel = v.activeLogements ? surfaceLogLouee * (v.loyerM2MoisLogement ?? 0) * 12 : 0;
       const caBureauxAnnuel = v.activeBureaux ? v.nbBureaux * v.surfaceBureauMoyenne * ((v.tauxOccupationBureau ?? 0) / 100) * (v.loyerM2MoisBureau ?? 0) * 12 : 0;
       const caHotelAnnuel = v.activeHotel ? v.nbChambres * 30 * ((v.tauxOccupationMoyen ?? 0) / 100) * (v.prixNuiteeMoyen ?? 0) * 12 : 0;
       const caRestoAnnuel = v.activeRestaurant ? v.nbCouvertsMoyen * 30 * v.ticketMoyenRestaurant * 12 : 0;

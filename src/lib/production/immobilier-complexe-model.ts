@@ -9,11 +9,12 @@ export const complexeModel: ProductionModel = {
     const nMonths = ctx.durationYears * 12;
     const dureeProg = Math.max(1, Math.round(num(ctx, 'dureeProgramme', 24)));
 
-    // Logements (vente étalée)
+    // Logements (loyers récurrents)
     const nbLogements = num(ctx, 'nbLogements', 15);
-    const prixLog = num(ctx, 'prixUnitaireLogement', 22000000);
-    const caLogTotal = num(ctx, 'activeLogements', 1) === 1 ? nbLogements * prixLog : 0;
-    const caLogParMois = caLogTotal / dureeProg;
+    const surfaceMoyLog = num(ctx, 'surfaceMoyenne', 90);
+    const loyerM2Log = num(ctx, 'loyerM2MoisLogement', 5000);
+    const tauxOccLog = num(ctx, 'tauxOccupationLogement', 85) / 100;
+    const loyerLogMensuel = num(ctx, 'activeLogements', 1) === 1 ? nbLogements * surfaceMoyLog * tauxOccLog * loyerM2Log : 0;
 
     // Bureaux (loyers récurrents)
     const nbBureaux = num(ctx, 'nbBureaux', 6);
@@ -48,10 +49,9 @@ export const complexeModel: ProductionModel = {
       ? num(ctx, 'nbSallesReunion', 2) * 30 * 0.4 * (num(ctx, 'tauxOccupationSalleReunion', 40) / 100) * num(ctx, 'tarifJourSalleReunion', 150000)
       : 0;
 
-    return Array.from({ length: nMonths }, (_, i) => {
-      const logement = i < dureeProg ? caLogParMois : 0;
-      return logement + caBurMois + caHotelMois + caRestoMois + caPiscMois + caFeteMois + caReunionMois;
-    });
+    return new Array(nMonths).fill(
+      loyerLogMensuel + caBurMois + caHotelMois + caRestoMois + caPiscMois + caFeteMois + caReunionMois
+    );
   },
   computeMonthlyVariableCosts(ctx): CostLine[] {
     const nMonths = ctx.durationYears * 12;
@@ -96,8 +96,8 @@ export const complexeModel: ProductionModel = {
     const result: Record<string, number[]> = {};
 
     if (num(ctx, 'activeLogements', 1) === 1) {
-      const vendusParMois = num(ctx, 'nbLogements', 15) / dureeProg;
-      result['Logements vendus'] = Array.from({ length: nMonths }, (_, i) => (i < dureeProg ? vendusParMois : 0));
+      const surfaceLouee = num(ctx, 'nbLogements', 15) * num(ctx, 'surfaceMoyenne', 90) * (num(ctx, 'tauxOccupationLogement', 85) / 100);
+      result['Surface logements louée (m²)'] = new Array(nMonths).fill(surfaceLouee);
     }
     if (num(ctx, 'activeBureaux', 1) === 1) {
       const surf = num(ctx, 'nbBureaux', 6) * num(ctx, 'surfaceBureauMoyenne', 50) * (num(ctx, 'tauxOccupationBureau', 75) / 100);

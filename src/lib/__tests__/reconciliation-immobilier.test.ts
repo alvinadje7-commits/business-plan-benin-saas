@@ -1,5 +1,5 @@
 // ============================================================
-// Test réconciliation — modèles immobilier
+// Test réconciliation — modèles immobilier (mode locatif)
 // ============================================================
 import { describe, it, expect } from 'vitest';
 import { logementsModel } from '../production/immobilier-logements-model';
@@ -9,32 +9,39 @@ import { logementsBureauxModel } from '../production/immobilier-logements-bureau
 import { complexeModel } from '../production/immobilier-complexe-model';
 import type { ProductionContext } from '../production/types';
 
-const ctxLogements: ProductionContext = {
-  sectorCode: 'immobilier',
-  durationYears: 7,
-  sectorValues: {
-    nbLogements: 20,
-    prixUnitaireLogement: 25000000,
-    dureeProgramme: 24,
-    surfaceMoyenne: 100,
-    coutConstructionLogement: 15000000,
-    coutTerrainTotal: 50000000,
-    coutVRD: 30000000,
-  },
-};
-
-describe('Immobilier — logements', () => {
-  it('CA total cumulé = nbLogements × prixUnitaire', () => {
-    const revenue = logementsModel.computeMonthlyRevenue(ctxLogements);
-    const total = revenue.reduce((a, b) => a + b, 0);
-    expect(total).toBeCloseTo(20 * 25000000, 0);
+describe('Immobilier — logements (locatif)', () => {
+  it('loyers constants sur toute la durée', () => {
+    const ctx: ProductionContext = {
+      sectorCode: 'immobilier',
+      durationYears: 7,
+      sectorValues: {
+        nbLogements: 20,
+        surfaceMoyenne: 100,
+        loyerM2MoisLogement: 5000,
+        tauxOccupationLogement: 85,
+      },
+    };
+    const revenue = logementsModel.computeMonthlyRevenue(ctx);
+    const attendu = 20 * 100 * 0.85 * 5000;
+    expect(revenue[0]).toBeCloseTo(attendu, 0);
+    expect(revenue[83]).toBeCloseTo(attendu, 0);
   });
 
-  it('CA = 0 après la durée du programme', () => {
-    const revenue = logementsModel.computeMonthlyRevenue(ctxLogements);
-    expect(revenue[23]).toBeGreaterThan(0);
-    expect(revenue[24]).toBe(0);
-    expect(revenue[83]).toBe(0);
+  it('CA total cumulé = loyer mensuel × nb mois', () => {
+    const ctx: ProductionContext = {
+      sectorCode: 'immobilier',
+      durationYears: 7,
+      sectorValues: {
+        nbLogements: 20,
+        surfaceMoyenne: 100,
+        loyerM2MoisLogement: 5000,
+        tauxOccupationLogement: 85,
+      },
+    };
+    const revenue = logementsModel.computeMonthlyRevenue(ctx);
+    const total = revenue.reduce((a, b) => a + b, 0);
+    const attenduMensuel = 20 * 100 * 0.85 * 5000;
+    expect(total).toBeCloseTo(attenduMensuel * 84, 0);
   });
 });
 
@@ -108,8 +115,9 @@ describe('Immobilier — logements_bureaux', () => {
       durationYears: 7,
       sectorValues: {
         nbLogements: 15,
-        prixUnitaireLogement: 22000000,
-        dureeProgramme: 24,
+        surfaceMoyenne: 90,
+        loyerM2MoisLogement: 5000,
+        tauxOccupationLogement: 85,
         nbBureaux: 6,
         surfaceBureauMoyenne: 50,
         loyerM2MoisBureau: 8000,
@@ -117,17 +125,15 @@ describe('Immobilier — logements_bureaux', () => {
       },
     };
     const rev = logementsBureauxModel.computeMonthlyRevenue(ctx);
-    const totalLog = 15 * 22000000;
-    const loyerBurMois = 6 * 50 * 0.75 * 8000;
-    // Mois 1 : logement étalé + loyer bureau
-    expect(rev[0]).toBeCloseTo(totalLog / 24 + loyerBurMois, 0);
-    // Mois 30 (> 24) : plus de logement, seulement loyer
-    expect(rev[30]).toBeCloseTo(loyerBurMois, 0);
+    const loyerLog = 15 * 90 * 0.85 * 5000;
+    const loyerBur = 6 * 50 * 0.75 * 8000;
+    expect(rev[0]).toBeCloseTo(loyerLog + loyerBur, 0);
+    expect(rev[83]).toBeCloseTo(loyerLog + loyerBur, 0);
   });
 });
 
 describe('Immobilier — complexe', () => {
-  it('logements seuls = équivalent modèle logements', () => {
+  it('logements seuls = équivalent modèle logements (location)', () => {
     const ctx: ProductionContext = {
       sectorCode: 'immobilier',
       durationYears: 7,
@@ -140,13 +146,15 @@ describe('Immobilier — complexe', () => {
         activeSalleFete: 0,
         activeSalleReunion: 0,
         nbLogements: 15,
-        prixUnitaireLogement: 22000000,
-        dureeProgramme: 24,
+        surfaceMoyenne: 90,
+        loyerM2MoisLogement: 5000,
+        tauxOccupationLogement: 85,
       },
     };
     const rev = complexeModel.computeMonthlyRevenue(ctx);
-    const total = rev.reduce((a, b) => a + b, 0);
-    expect(total).toBeCloseTo(15 * 22000000, 0);
+    const attendu = 15 * 90 * 0.85 * 5000;
+    expect(rev[0]).toBeCloseTo(attendu, 0);
+    expect(rev[83]).toBeCloseTo(attendu, 0);
   });
 
   it('multi-composants = somme des CA actifs', () => {
@@ -162,8 +170,9 @@ describe('Immobilier — complexe', () => {
         activeSalleFete: 1,
         activeSalleReunion: 0,
         nbLogements: 15,
-        prixUnitaireLogement: 22000000,
-        dureeProgramme: 24,
+        surfaceMoyenne: 90,
+        loyerM2MoisLogement: 5000,
+        tauxOccupationLogement: 85,
         nbBureaux: 6,
         surfaceBureauMoyenne: 50,
         loyerM2MoisBureau: 8000,
@@ -178,12 +187,13 @@ describe('Immobilier — complexe', () => {
       },
     };
     const rev = complexeModel.computeMonthlyRevenue(ctx);
-    const attenduMois1 =
-      (15 * 22000000) / 24 +   // logement étalé
-      6 * 50 * 0.75 * 8000 +   // bureaux
-      30 * 30 * 0.65 * 35000 + // hôtel
-      60 * 30 * 8000 +         // resto
-      3 * 800000;              // fête
-    expect(rev[0]).toBeCloseTo(attenduMois1, 0);
+    const attenduMois =
+      15 * 90 * 0.85 * 5000 +
+      6 * 50 * 0.75 * 8000 +
+      30 * 30 * 0.65 * 35000 +
+      60 * 30 * 8000 +
+      3 * 800000;
+    expect(rev[0]).toBeCloseTo(attenduMois, 0);
+    expect(rev[83]).toBeCloseTo(attenduMois, 0);
   });
 });
