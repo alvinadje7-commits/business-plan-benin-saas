@@ -10,6 +10,7 @@ import { computeFinancialResult, fmtFCFA } from '../lib/financial-statements-eng
 import { useProjectStore } from '../store/projectStore';
 import { getSectorConfig, getActiveKpisSpecifiques } from '../lib/sectors-config';
 import { useProductionModel } from '../hooks/useProductionModel';
+import { MONTHLY_SERIES, type MonthlyPoint } from '../lib/mockup-data';
 
 function readSettings(): { tauxActualisation: number; dureeEtude: number } {
   try {
@@ -21,6 +22,18 @@ function readSettings(): { tauxActualisation: number; dureeEtude: number } {
   } catch {
     return { tauxActualisation: 6, dureeEtude: 7 };
   }
+}
+
+const MOIS_LABELS_DASH = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
+
+function toMonthlyPoints(revenue?: number[], cv?: number[]): MonthlyPoint[] {
+  if (!revenue || revenue.length < 12) return MONTHLY_SERIES;
+  return MOIS_LABELS_DASH.map((m, i) => ({
+    mois: m,
+    ca: revenue[i] ?? 0,
+    rn: (revenue[i] ?? 0) - (cv?.[i] ?? 0),
+    treso: 0,
+  }));
 }
 
 export function Dashboard() {
@@ -42,12 +55,17 @@ export function Dashboard() {
   }, [prod]);
   const tauxPct = settings.tauxActualisation;
 
-  const { kpis } = useMemo(
+  const result = useMemo(
     () => computeFinancialResult(
       hypotheses, investments, financement, sectorCode,
-      settings.tauxActualisation / 100, dureeEtude,
+      settings.tauxActualisation / 100, dureeEtude, productionData,
     ),
     [hypotheses, investments, financement, sectorCode, settings.tauxActualisation, dureeEtude, productionData],
+  );
+  const kpis = result.kpis;
+  const monthlyPoints = useMemo(
+    () => toMonthlyPoints(result.cr[0]?.monthlyRevenue, result.cr[0]?.monthlyCV),
+    [result],
   );
 
   const sector = getSectorConfig(sectorCode);
@@ -101,7 +119,7 @@ export function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <CaChart />
+        <CaChart data={monthlyPoints} />
         <TresorerieChart />
         <ChargesChart />
         <RepartitionChart />
