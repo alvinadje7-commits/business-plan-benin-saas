@@ -1,8 +1,11 @@
 // ============================================================
-// Registry — un ProductionModel par code secteur
-// Fallback = linearModel pour éviter tout crash
+// Registry — un ProductionModel par couple (secteur, variante)
+// Fallback cascade : sectorCode:variant → sectorCode → linearModel
 // ============================================================
 import { batchModel } from './batch-model';
+import { chairModel } from './aviculture-chair-model';
+import { pondeuseModel } from './aviculture-pondeuse-model';
+import { mixteModel } from './aviculture-mixte-model';
 import { linearModel } from './linear-model';
 import { seasonalModel } from './seasonal-model';
 import { projectModel } from './project-model';
@@ -11,31 +14,36 @@ import { capacityModel } from './capacity-model';
 import type { ProductionModel } from './types';
 
 const registry: Record<string, ProductionModel> = {
-  // Pattern A — Multi-bandes / cycles
-  'aviculture':         batchModel,
-  'anacarde':           batchModel,
-  'agro-industrie':     batchModel,
-  'elevage-autre':      batchModel,
+  // ── Aviculture (variantes) ──
+  'aviculture':          batchModel,      // legacy (compat tests/anciens projets)
+  'aviculture:pondeuse': pondeuseModel,   // NOUVEAU — lit les champs pondeuse
+  'aviculture:chair':    chairModel,      // NOUVEAU
+  'aviculture:mixte':    mixteModel,      // NOUVEAU
+
+  // ── Pattern A — Multi-bandes (autres secteurs) ──
+  'anacarde':            batchModel,
+  'agro-industrie':      batchModel,
+  'elevage-autre':       batchModel,
   'transformation-agro': batchModel,
 
-  // Pattern B — Linéaire mensuel
-  'commerce-general':   linearModel,
-  'commerce':           linearModel,
-  'import-export':      linearModel,
-  'transport':          linearModel,
+  // ── Pattern B — Linéaire ──
+  'commerce-general':    linearModel,
+  'commerce':            linearModel,
+  'import-export':       linearModel,
+  'transport':           linearModel,
 
-  // Pattern C — Saisonnier
-  'agriculture':        seasonalModel,
+  // ── Pattern C — Saisonnier ──
+  'agriculture':         seasonalModel,
 
-  // Pattern D — Projet / chantier
-  'btp':                projectModel,
+  // ── Pattern D — Projet ──
+  'btp':                 projectModel,
 
-  // Pattern E — TJM / capacité
-  'services':           tjmModel,
+  // ── Pattern E — TJM ──
+  'services':            tjmModel,
 
-  // Pattern F — Couverts / lots
-  'restauration':       capacityModel,
-  'immobilier':         capacityModel,
+  // ── Pattern F — Capacité ──
+  'restauration':        capacityModel,
+  'immobilier':          capacityModel,
 };
 
 function normalize(code: string): string {
@@ -48,11 +56,15 @@ function normalize(code: string): string {
     .replace(/^-|-$/g, '');
 }
 
-export function getProductionModel(sectorCode: string): ProductionModel {
+export function getProductionModel(sectorCode: string, sectorVariant?: string): ProductionModel {
   const n = normalize(sectorCode);
+  if (sectorVariant) {
+    const v = normalize(sectorVariant);
+    const composite = `${n}:${v}`;
+    if (registry[composite]) return registry[composite];
+  }
   const direct = registry[n];
   if (direct) return direct;
-  // Fallback safe : pas de crash, juste un modèle générique
   return linearModel;
 }
 

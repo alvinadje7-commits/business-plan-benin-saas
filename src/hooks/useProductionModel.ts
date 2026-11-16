@@ -4,15 +4,14 @@ import { getProductionModel } from '../lib/production/registry';
 
 export function useProductionModel() {
   const sectorCode = useProjectStore((s) => s.sectorCode);
+  const sectorVariant = useProjectStore((s) => s.sectorVariant);
   const sectorValues = useProjectStore((s) => s.sectorValues);
   const hypotheses = useProjectStore((s) => s.hypotheses);
 
   return useMemo(() => {
     if (!sectorCode) return null;
-    const model = getProductionModel(sectorCode);
-    const durationYears = (hypotheses as { dureeEtude?: number; durationYears?: number })?.dureeEtude
-      ?? (hypotheses as { durationYears?: number })?.durationYears
-      ?? 7;
+    const model = getProductionModel(sectorCode, sectorVariant);
+    const durationYears = (hypotheses as { dureeEtude?: number })?.dureeEtude ?? 7;
     const ctx = { sectorCode, sectorValues, durationYears };
     return {
       model,
@@ -23,5 +22,5 @@ export function useProductionModel() {
       technical: model.getTechnicalSheet(ctx),
       kpis: model.getSectorKPIs(ctx),
     };
-  }, [sectorCode, sectorValues, hypotheses]);
+  }, [sectorCode, sectorVariant, sectorValues, hypotheses]);
 }

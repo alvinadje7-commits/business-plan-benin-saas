@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { computeFinancialResult, fmtFCFA } from '../../lib/financial-statements-engine';
 import { computeLevers, type LeverResult } from '../../lib/goal-seek';
+import { useProductionModel } from '../../hooks/useProductionModel';
 
 function readSettings() {
   try {
@@ -43,13 +44,20 @@ export function ObjectifTRIView() {
   const [appliedKey, setAppliedKey] = useState<string | null>(null);
   const [showDebug, setShowDebug] = useState(false);
 
+  const prod = useProductionModel();
+  const productionData = useMemo(() => {
+    if (!prod) return undefined;
+    const monthlyCV = new Array(prod.revenue.length).fill(0);
+    prod.costs.forEach((c) => c.values.forEach((v, i) => { monthlyCV[i] += v; }));
+    return { monthlyRevenue: prod.revenue, monthlyCV };
+  }, [prod]);
   const settings = readSettings();
   const taux = settings.tauxActualisation / 100;
   const horizon = settings.dureeEtude;
 
   const currentResult = useMemo(
-    () => computeFinancialResult(hypotheses, investments, financement, sectorCode, taux, horizon),
-    [hypotheses, investments, financement, sectorCode, taux, horizon],
+    () => computeFinancialResult(hypotheses, investments, financement, sectorCode, taux, horizon, productionData),
+    [hypotheses, investments, financement, sectorCode, taux, horizon, productionData],
   );
   const currentTRI = currentResult.kpis.tri;
   const triIsValid = Number.isFinite(currentTRI);

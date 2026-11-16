@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { KpiCard } from "../ui/KpiCard";
 import { useProjectStore } from "../../store/projectStore";
+import { useProductionModel } from '../../hooks/useProductionModel';
 import { getSectorConfig, getActiveChargeRubriques } from '../../lib/sectors-config';
 import { fmtFCFA, fmtSigned, computeFinancialResult } from '../../lib/financial-statements-engine';
 import type { Hypotheses, Investment } from '../../types/project';
@@ -22,11 +23,29 @@ interface Props {
 export function ResultatsCard(_props: Props = {}) {
   const [tab, setTab] = useState<TabKey>('cr');
   const hypotheses = useProjectStore((s) => s.hypotheses);
+  const sectorCode = useProjectStore((s) => s.sectorCode);
+  const prod = useProductionModel();
+  const productionData = useMemo(() => {
+    if (!prod) return undefined;
+    const monthlyCV = new Array(prod.revenue.length).fill(0);
+    prod.costs.forEach((c) => c.values.forEach((v, i) => { monthlyCV[i] += v; }));
+    return { monthlyRevenue: prod.revenue, monthlyCV };
+  }, [prod]);
+
+  const settingsResultats = (() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem('bpb-settings') || '{}');
+      return {
+        tauxActualisation: Number(raw.tauxActualisation ?? 6),
+        dureeEtude: Number(raw.dureeEtude ?? 7),
+      };
+    } catch { return { tauxActualisation: 6, dureeEtude: 7 }; }
+  })();
   const investments = useProjectStore((s) => s.investments);
   const financement = useProjectStore((s) => s.financement);
   const result = useMemo(
-    () => computeFinancialResult(hypotheses, investments, financement),
-    [hypotheses, investments, financement],
+    () => computeFinancialResult(hypotheses, investments, financement, sectorCode, settingsResultats.tauxActualisation / 100, settingsResultats.dureeEtude, productionData),
+    [hypotheses, investments, financement, sectorCode, productionData],
   );
   const { cr, bilan, tafire, tresorerie, kpis } = result;
 

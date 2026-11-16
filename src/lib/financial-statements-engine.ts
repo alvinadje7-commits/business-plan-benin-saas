@@ -10,22 +10,47 @@ import { getTaxRate } from './impots-taxes';
 
 const MOIS_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 
+export interface ProductionData {
+  monthlyRevenue: number[];
+  monthlyCV: number[];
+}
+
+function aggregateYearly(monthly: number[], year: number): number {
+  const start = year * 12;
+  const end = Math.min((year + 1) * 12, monthly.length);
+  let sum = 0;
+  for (let i = start; i < end; i++) sum += monthly[i] ?? 0;
+  if (end > start && end - start < 12) sum = (sum / (end - start)) * 12;
+  return sum;
+}
+
 export const TAUX_ACTU_DEFAULT = 0.06;
 export const HORIZON_DEFAULT = 7;
 
-function computeCR(h: Hypotheses, inv: Investment[], fin: Financement, durationYears: number, sectorCode: string): YearFinancials[] {
+function computeCR(h: Hypotheses, inv: Investment[], fin: Financement, durationYears: number, sectorCode: string, productionData?: ProductionData): YearFinancials[] {
   const amortLines = computeAmortizationTable(inv, durationYears);
   const schedule = computeLoanSchedule(fin);
   const taxRate = getTaxRate(sectorCode);
   const result: YearFinancials[] = [];
-  let ca = h.caMensuel * 12;
+  let caFlat = h.caMensuel * 12;
   for (let a = 0; a < durationYears; a++) {
-    if (a > 0) {
-      const growthA3 = (h as any).croissanceA3 ?? h.croissanceA2;
-      const growth = a === 1 ? h.croissanceA2 : growthA3;
-      ca *= 1 + growth / 100;
+    let ca: number;
+    let achats: number;
+    if (productionData && productionData.monthlyRevenue.length > 0) {
+      ca = aggregateYearly(productionData.monthlyRevenue, a);
+      achats = productionData.monthlyCV.length > 0
+        ? aggregateYearly(productionData.monthlyCV, a)
+        : ca * (h.pctAchats / 100);
+      caFlat = ca;
+    } else {
+      if (a > 0) {
+        const growthA3 = (h as any).croissanceA3 ?? h.croissanceA2;
+        const growth = a === 1 ? h.croissanceA2 : growthA3;
+        caFlat *= 1 + growth / 100;
+      }
+      ca = caFlat;
+      achats = ca * (h.pctAchats / 100);
     }
-    const achats = ca * (h.pctAchats / 100);
     const marge = ca - achats;
     const chargesExt = ca * (h.pctChargesExt / 100);
     const va = marge - chargesExt;
@@ -186,10 +211,11 @@ function computeKPIs(
 export function computeFinancialResult(
   h: Hypotheses, inv: Investment[], fin: Financement,
   sectorCode: string = 'autres', tauxActualisation?: number, horizonAnnees?: number,
+  productionData?: ProductionData,
 ): FinancialResult {
   const durationYears = horizonAnnees ?? (h as any).dureeEtude ?? HORIZON_DEFAULT;
   const tauxActu = tauxActualisation ?? TAUX_ACTU_DEFAULT;
-  const cr = computeCR(h, inv, fin, durationYears, sectorCode);
+  const cr = computeCR(h, inv, fin, durationYears, sectorCode, productionData);
   const bfrYears = cr.map((y) => computeBFR(h, y.ca, y.achats));
   const bilan = computeBilan(cr, inv, fin, bfrYears, durationYears);
   const tafire = computeTafire(cr, bilan, fin, durationYears);
@@ -205,8 +231,9 @@ export function computeFinancialResult(
 export function computeTRIOnly(
   h: Hypotheses, inv: Investment[], fin: Financement,
   sectorCode: string, tauxActu: number, horizon: number,
+  productionData?: ProductionData,
 ): number {
-  const cr = computeCR(h, inv, fin, horizon, sectorCode);
+  const cr = computeCR(h, inv, fin, horizon, sectorCode, productionData);
   const bfrYears = cr.map((y) => computeBFR(h, y.ca, y.achats));
   const kpis = computeKPIs(cr, inv, fin, bfrYears, horizon, tauxActu, sectorCode);
   return kpis.tri;

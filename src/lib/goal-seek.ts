@@ -1,29 +1,16 @@
 import type { Hypotheses, Investment, Financement } from '../types/project';
-import { computeTRIOnly } from './financial-statements-engine';
+import { computeTRIOnly, type ProductionData } from './financial-statements-engine';
 
 export type LeverKey = 'caMensuel' | 'investTotal' | 'pctAchats' | 'masseSalariale' | 'emprunt';
-
 export type Verdict = 'deja_atteint' | 'realiste' | 'agressif' | 'difficile' | 'impossible';
 
 export interface LeverResult {
-  key: LeverKey;
-  label: string;
-  description: string;
-  unit: 'FCFA' | '%';
-  currentValue: number;
-  requiredValue: number | null;
-  gapPercent: number;
-  verdict: Verdict;
+  key: LeverKey; label: string; description: string; unit: 'FCFA' | '%';
+  currentValue: number; requiredValue: number | null; gapPercent: number; verdict: Verdict;
 }
 
-interface SolveInput {
-  targetTRI: number;
-  min: number;
-  max: number;
-  evaluate: (x: number) => number;
-}
+interface SolveInput { targetTRI: number; min: number; max: number; evaluate: (x: number) => number; }
 
-/** Résolution par bisection (25 itérations max, tolérance 0,05 pt) */
 function solveBisection(input: SolveInput): number | null {
   const fMin = input.evaluate(input.min) - input.targetTRI;
   const fMax = input.evaluate(input.max) - input.targetTRI;
@@ -33,7 +20,7 @@ function solveBisection(input: SolveInput): number | null {
     const mid = (lo + hi) / 2;
     const fMid = input.evaluate(mid) - input.targetTRI;
     if (Math.abs(fMid) < 0.05) return mid;
-    if (fLo * fMid <= 0) { hi = mid; } else { lo = mid; fLo = fMid; }
+    if (fLo * fMid <= 0) hi = mid; else { lo = mid; fLo = fMid; }
   }
   return (lo + hi) / 2;
 }
@@ -46,27 +33,34 @@ function verdictFromGap(gapPercent: number): Verdict {
   return 'impossible';
 }
 
+function scalePD(pd: ProductionData | undefined, revScale: number, cvScale: number): ProductionData | undefined {
+  if (!pd) return undefined;
+  return {
+    monthlyRevenue: pd.monthlyRevenue.map((v) => v * revScale),
+    monthlyCV: pd.monthlyCV.map((v) => v * cvScale),
+  };
+}
+
 export function computeLevers(
-  targetTRI: number,
-  currentTRI: number,
-  h: Hypotheses,
-  inv: Investment[],
-  fin: Financement,
-  sectorCode: string,
-  tauxActu: number,
-  horizon: number,
+  targetTRI: number, currentTRI: number,
+  h: Hypotheses, inv: Investment[], fin: Financement,
+  sectorCode: string, tauxActu: number, horizon: number,
+  productionData?: ProductionData,
 ): LeverResult[] {
   const results: LeverResult[] = [];
   const alreadyReached = currentTRI >= targetTRI - 0.01;
-  const triFor = (h2: Hypotheses, inv2: Investment[], fin2: Financement) =>
-    computeTRIOnly(h2, inv2, fin2, sectorCode, tauxActu, horizon);
+  const triFor = (h2: Hypotheses, inv2: Investment[], fin2: Financement, pd2?: ProductionData) =>
+    computeTRIOnly(h2, inv2, fin2, sectorCode, tauxActu, horizon, pd2);
 
-  // 1. CA mensuel
+  // 1. CA mensuel — scale revenue proportionnellement
   {
     const current = h.caMensuel;
     const required = alreadyReached ? current : solveBisection({
       targetTRI, min: Math.max(1000, current * 0.5), max: current * 3,
-      evaluate: (x) => triFor({ ...h, caMensuel: x }, inv, fin),
+      evaluate: (x) => {
+        const ratio = current > 0 ? x / current : 1;
+        return triFor({ ...h, caMensuel: x }, inv, fin, scalePD(productionData, ratio, 1));
+      },
     });
     const gapPercent = required !== null && current > 0 ? ((required - current) / current) * 100 : 0;
     results.push({
@@ -85,7 +79,7 @@ export function computeLevers(
       evaluate: (x) => {
         const factor = current > 0 ? x / current : 1;
         const inv2 = inv.map((i) => ({ ...i, cost: Math.round(i.cost * factor) }));
-        return triFor(h, inv2, fin);
+        return triFor(h, inv2, fin, productionData);
       },
     });
     const gapPercent = required !== null && current > 0 ? ((required - current) / current) * 100 : 0;
@@ -97,12 +91,15 @@ export function computeLevers(
     });
   }
 
-  // 3. % charges variables
+  // 3. % charges variables — scale CV proportionnellement
   {
     const current = h.pctAchats;
     const required = alreadyReached ? current : solveBisection({
       targetTRI, min: 30, max: Math.min(85, Math.max(current * 1.5, 70)),
-      evaluate: (x) => triFor({ ...h, pctAchats: x }, inv, fin),
+      evaluate: (x) => {
+        const ratio = current > 0 ? x / current : 1;
+        return triFor({ ...h, pctAchats: x }, inv, fin, scalePD(productionData, 1, ratio));
+      },
     });
     const gapPercent = required !== null && current > 0 ? ((required - current) / current) * 100 : 0;
     results.push({
@@ -118,7 +115,7 @@ export function computeLevers(
     const current = h.masseSalariale;
     const required = alreadyReached ? current : solveBisection({
       targetTRI, min: current * 0.7, max: current * 1.5,
-      evaluate: (x) => triFor({ ...h, masseSalariale: x }, inv, fin),
+      evaluate: (x) => triFor({ ...h, masseSalariale: x }, inv, fin, productionData),
     });
     const gapPercent = required !== null && current > 0 ? ((required - current) / current) * 100 : 0;
     results.push({
@@ -135,7 +132,7 @@ export function computeLevers(
     const investTotal = inv.reduce((s, i) => s + i.cost, 0);
     const required = alreadyReached ? current : solveBisection({
       targetTRI, min: 0, max: Math.round(investTotal * 0.9),
-      evaluate: (x) => triFor(h, inv, { ...fin, empruntMontant: x }),
+      evaluate: (x) => triFor(h, inv, { ...fin, empruntMontant: x }, productionData),
     });
     const gapPercent = required !== null && current > 0 ? ((required - current) / current) * 100 : 0;
     results.push({

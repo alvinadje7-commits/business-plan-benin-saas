@@ -8,6 +8,7 @@ import { RepartitionChart } from './charts/RepartitionChart';
 import { computeFinancialResult, fmtFCFA } from '../lib/financial-statements-engine';
 import { useProjectStore } from '../store/projectStore';
 import { getSectorConfig, getActiveKpisSpecifiques } from '../lib/sectors-config';
+import { useProductionModel } from '../hooks/useProductionModel';
 
 function readSettings(): { tauxActualisation: number; dureeEtude: number } {
   try {
@@ -30,6 +31,13 @@ export function Dashboard() {
   const sectorVariant = useProjectStore((s) => s.sectorVariant);
 
   const settings = readSettings();
+  const prod = useProductionModel();
+  const productionData = useMemo(() => {
+    if (!prod) return undefined;
+    const monthlyCV = new Array(prod.revenue.length).fill(0);
+    prod.costs.forEach((c) => c.values.forEach((v, i) => { monthlyCV[i] += v; }));
+    return { monthlyRevenue: prod.revenue, monthlyCV };
+  }, [prod]);
   const tauxPct = settings.tauxActualisation;
 
   const { kpis } = useMemo(
@@ -37,7 +45,7 @@ export function Dashboard() {
       hypotheses, investments, financement, sectorCode,
       settings.tauxActualisation / 100, settings.dureeEtude,
     ),
-    [hypotheses, investments, financement, sectorCode, settings.tauxActualisation, settings.dureeEtude],
+    [hypotheses, investments, financement, sectorCode, settings.tauxActualisation, settings.dureeEtude, productionData],
   );
 
   const sector = getSectorConfig(sectorCode);
