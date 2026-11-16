@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { useProjectStore } from '../../store/projectStore';
+import { fmtFCFA } from '../../lib/sig-engine';
 import { SECTORS } from '../../lib/mockup-data';
 import { FormSection, FormField, inputClass, grid2 } from './FormSection';
 import {
@@ -42,6 +44,23 @@ export function InfosGenerales({ onSave }: Props) {
 
   const totalPercent = info.shareholders.reduce((sum, s) => sum + (s.percent || 0), 0);
   const percentOk = Math.abs(totalPercent - 100) < 0.01;
+
+  // Auto-sync : montant = capital × percent / 100 (toujours cohérent)
+  useEffect(() => {
+    const c = info.capital || 0;
+    const needsUpdate = info.shareholders.some((sh) => {
+      const expected = Math.round(c * (sh.percent || 0) / 100);
+      return sh.amount !== expected;
+    });
+    if (needsUpdate) {
+      const next = info.shareholders.map((sh) => ({
+        ...sh,
+        amount: Math.round(c * (sh.percent || 0) / 100),
+      }));
+      updateInfo('shareholders', next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [info.capital, info.shareholders.map((sh) => sh.percent + ':' + sh.id).join('|')]);
 
   return (
     <div className="space-y-5">
@@ -196,7 +215,7 @@ export function InfosGenerales({ onSave }: Props) {
           </FormField>
           <FormField label="Total réparti">
             <div className={`${inputClass} bg-slate-50 flex items-center justify-between`}>
-              <span className="text-sm font-medium">{totalPercent.toFixed(1)} %</span>
+              <span className="text-sm font-medium">{totalPercent.toFixed(1)} % — {fmtFCFA(Math.round((info.capital || 0) * totalPercent / 100))}</span>
               {percentOk ? (
                 <span className="text-xs text-emerald-600 font-medium">✅ 100 %</span>
               ) : (
@@ -257,13 +276,8 @@ export function InfosGenerales({ onSave }: Props) {
                         className="w-full px-2 py-1 rounded-lg border border-slate-200 text-sm text-right focus:outline-none focus:border-slate-400"
                       />
                     </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        value={s.amount}
-                        onChange={(e) => updateShareholder(s.id, { amount: Number(e.target.value) })}
-                        className="w-full px-2 py-1 rounded-lg border border-slate-200 text-sm text-right focus:outline-none focus:border-slate-400"
-                      />
+                    <td className="px-3 py-2 text-right text-sm font-medium text-slate-700 tabular-nums">
+                      {fmtFCFA(Math.round((info.capital || 0) * (s.percent || 0) / 100))}
                     </td>
                     <td className="px-2 py-2 text-center">
                       <button
