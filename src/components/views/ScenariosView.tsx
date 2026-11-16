@@ -5,6 +5,9 @@ import { computeFinancialResult, fmtFCFA } from '../../lib/financial-statements-
 import { useProjectStore } from '../../store/projectStore';
 import type { Hypotheses } from '../../types/project';
 import { COLORS } from '../../lib/mockup-data';
+import { useProductionModel } from '../../hooks/useProductionModel';
+import { useDureeEtude } from '../../hooks/useDureeEtude';
+import { useSettingsStore } from '../../store/settingsStore';
 
 /**
  * Applique un facteur multiplicateur à des champs d'hypothèses.
@@ -40,33 +43,64 @@ export function ScenariosView() {
   const workingHypotheses = useProjectStore((s) => s.hypotheses);
   const investments = useProjectStore((s) => s.investments);
   const financement = useProjectStore((s) => s.financement);
+  const sectorCode = useProjectStore((s) => s.sectorCode);
+  const tauxActualisation = useSettingsStore((st) => st.tauxActualisation);
+  const dureeEtude = useDureeEtude();
+  const prod = useProductionModel();
+
+  // productionData de base (modèle réel ACCLANGE)
+  const baseProduction = useMemo(() => {
+    if (!prod) return undefined;
+    const monthlyCV = new Array(prod.revenue.length).fill(0);
+    prod.costs.forEach((c: any) => c.values.forEach((v: number, i: number) => { monthlyCV[i] += v; }));
+    return { monthlyRevenue: prod.revenue, monthlyCV };
+  }, [prod]);
 
   const scenarios = useMemo(() => {
+    function factorProduction(factorCa: number, factorCv: number) {
+      if (!baseProduction) return undefined;
+      return {
+        monthlyRevenue: baseProduction.monthlyRevenue.map((v) => v * factorCa),
+        monthlyCV: baseProduction.monthlyCV.map((v) => v * factorCv),
+      };
+    }
+
     const list = [
       {
         key: 'pessimiste' as const,
         label: 'Pessimiste',
         hint: 'CA −20 %, charges +10 %',
         hypotheses: applyFactors(workingHypotheses, PESSIMISTE_FACTORS),
+        productionData: factorProduction(0.80, 1.10),
       },
       {
         key: 'normal' as const,
         label: 'Normal',
         hint: 'Scénario travaillé (Carte 3)',
         hypotheses: workingHypotheses,
+        productionData: baseProduction,
       },
       {
         key: 'optimiste' as const,
         label: 'Optimiste',
         hint: 'CA +20 %, charges −5 %',
         hypotheses: applyFactors(workingHypotheses, OPTIMISTE_FACTORS),
+        productionData: factorProduction(1.20, 0.95),
       },
     ];
-    return list.map((s) => ({
-      ...s,
-      result: computeFinancialResult(s.hypotheses, investments, financement),
+    return list.map((sc) => ({
+      ...sc,
+      result: computeFinancialResult(
+        sc.hypotheses,
+        investments,
+        financement,
+        sectorCode,
+        tauxActualisation / 100,
+        dureeEtude,
+        sc.productionData,
+      ),
     }));
-  }, [workingHypotheses, investments, financement]);
+  }, [workingHypotheses, investments, financement, sectorCode, tauxActualisation, dureeEtude, baseProduction]);
 
   const chartData = scenarios.map((r) => ({
     name: r.label,
