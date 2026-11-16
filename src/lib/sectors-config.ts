@@ -419,6 +419,70 @@ const IMMOBILIER_VARIANTS: Record<string, SectorVariant> = {
       ];
     },
   },
+  logements_bureaux: {
+    key: 'logements_bureaux',
+    icon: '🏘️',
+    label: 'Logements + Bureaux',
+    description: "Programme combiné : logements vendus + bureaux loués (revenus récurrents)",
+    fields: [
+      { key: 'nbLogements', label: 'Nombre de logements', type: 'integer', default: 15, group: 'production', min: 1, max: 300 },
+      { key: 'surfaceMoyenne', label: 'Surface moyenne / logement', type: 'decimal', unit: 'm²', default: 90, group: 'production', min: 30, max: 300 },
+      { key: 'prixUnitaireLogement', label: 'Prix vente / logement', type: 'currency', unit: 'FCFA', default: 22000000, group: 'commercial' },
+      { key: 'tauxPrelocation', label: 'Taux de pré-location', type: 'percent', unit: '%', default: 60, group: 'commercial', min: 0, max: 100 },
+      { key: 'delaiVenteMoyen', label: 'Délai de vente moyen', type: 'integer', unit: 'mois', default: 6, group: 'commercial', min: 1, max: 24 },
+      { key: 'coutConstructionLogement', label: 'Coût construction / logement', type: 'currency', unit: 'FCFA', default: 13000000, group: 'charges' },
+      { key: 'nbBureaux', label: 'Nombre de bureaux / plateaux', type: 'integer', default: 6, group: 'production', min: 1, max: 100 },
+      { key: 'surfaceBureauMoyenne', label: 'Surface moyenne / bureau', type: 'decimal', unit: 'm²', default: 50, group: 'production', min: 15, max: 500 },
+      { key: 'loyerM2MoisBureau', label: 'Loyer / m² / mois (bureaux)', type: 'currency', unit: 'FCFA', default: 8000, group: 'commercial' },
+      { key: 'tauxOccupationBureau', label: "Taux d'occupation bureaux", type: 'percent', unit: '%', default: 75, group: 'commercial', min: 40, max: 100 },
+      { key: 'coutConstructionBureauM2', label: 'Coût construction bureau / m²', type: 'currency', unit: 'FCFA', default: 180000, group: 'charges' },
+    ],
+    buildHypotheses: (v) => {
+      const caLogementsTotal = v.nbLogements * v.prixUnitaireLogement;
+      const dureeAns = Math.max(1, v.dureeProgramme / 12);
+      const caLogementsAnnuel = caLogementsTotal / dureeAns;
+      const surfaceBureauTotale = v.nbBureaux * v.surfaceBureauMoyenne;
+      const surfaceLouee = surfaceBureauTotale * (v.tauxOccupationBureau / 100);
+      const loyerBureauxMensuel = surfaceLouee * v.loyerM2MoisBureau;
+      const caBureauxAnnuel = loyerBureauxMensuel * 12;
+      const caAnnuel = caLogementsAnnuel + caBureauxAnnuel;
+      const caMensuel = caAnnuel / 12;
+      const coutLogements = v.nbLogements * v.coutConstructionLogement;
+      const coutBureaux = surfaceBureauTotale * v.coutConstructionBureauM2;
+      const coutTotal = v.coutTerrainTotal + coutLogements + coutBureaux + v.coutVRD;
+      const caGlobal = caLogementsTotal + caBureauxAnnuel * dureeAns;
+      const pctAchats = caGlobal > 0 ? (coutTotal / caGlobal) * 100 : 65;
+      const fraisPct = (v.fraisCommerciaux + v.fraisNotaire) / 100;
+      const chargesExt = caAnnuel * fraisPct + v.taxesFoncieres + (v.permisConstruire + v.agrementPromoteur + v.assuranceProgramme) / dureeAns;
+      const masseSal = v.nbEmployes * v.salaireMoyen * 12 * (1 + v.chargesSociales / 100);
+      return { caMensuel, pctAchats, pctChargesExt: caAnnuel > 0 ? (chargesExt / caAnnuel) * 100 : 12, masseSalariale: masseSal, joursStockage: 0, joursClients: 60, joursFournisseurs: 30 };
+    },
+    investmentTemplates: [
+      { label: 'Acquisition terrain', category: 'Corporel', cost: 60_000_000, startDate: DEFAULT_INVEST_DATE, duration: 30, mode: 'Linéaire' },
+      { label: 'Construction logements (tranche 1)', category: 'Corporel', cost: 195_000_000, startDate: DEFAULT_INVEST_DATE, duration: 30, mode: 'Linéaire' },
+      { label: 'Construction bureaux', category: 'Corporel', cost: 54_000_000, startDate: DEFAULT_INVEST_DATE, duration: 30, mode: 'Linéaire' },
+      { label: 'Voirie & VRD', category: 'Corporel', cost: 25_000_000, startDate: DEFAULT_INVEST_DATE, duration: 20, mode: 'Linéaire' },
+      { label: 'Bureau de vente & aménagement', category: 'Corporel', cost: 8_000_000, startDate: DEFAULT_INVEST_DATE, duration: 10, mode: 'Linéaire' },
+    ],
+    chargeRubriques: ['Terrain', 'Construction logements', 'Construction bureaux', 'VRD', 'Frais commerciaux', 'Notaire & actes', 'Taxes foncières', 'Personnel', 'Maintenance immeubles', 'Permis & agréments'],
+    kpisSpecifiques: (v) => {
+      const caLogementsTotal = v.nbLogements * v.prixUnitaireLogement;
+      const surfaceBureauTotale = v.nbBureaux * v.surfaceBureauMoyenne;
+      const surfaceLouee = surfaceBureauTotale * (v.tauxOccupationBureau / 100);
+      const loyerBureauxMensuel = surfaceLouee * v.loyerM2MoisBureau;
+      const caBureauxAnnuel = loyerBureauxMensuel * 12;
+      const dureeAns = Math.max(1, v.dureeProgramme / 12);
+      const caLogementsAnnuel = caLogementsTotal / dureeAns;
+      const caAnnuel = caLogementsAnnuel + caBureauxAnnuel;
+      return [
+        { label: 'CA logements', value: fmt(caLogementsTotal), hint: 'FCFA (total)', color: 'primary' },
+        { label: 'Loyers bureaux', value: fmt(caBureauxAnnuel), hint: 'FCFA/an', color: 'accent' },
+        { label: 'Part récurrent', value: caAnnuel > 0 ? ((caBureauxAnnuel / caAnnuel) * 100).toFixed(0) : '0', hint: '% CA (bureaux)', color: 'accent' },
+        { label: 'CA annuel total', value: fmt(caAnnuel), hint: 'FCFA', color: 'accent' },
+      ];
+    },
+  },
+
 };
 
 
