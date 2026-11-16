@@ -6,6 +6,7 @@ import { useProductionModel } from '../../hooks/useProductionModel';
 import { getSectorConfig, getActiveChargeRubriques } from '../../lib/sectors-config';
 import { fmtFCFA, fmtSigned, computeFinancialResult } from '../../lib/financial-statements-engine';
 import type { Hypotheses, Investment } from '../../types/project';
+import { useSettingsStore } from '../../store/settingsStore';
 
 type TabKey = 'cr' | 'bilan' | 'tafire' | 'treso' | 'notes';
 
@@ -33,20 +34,12 @@ export function ResultatsCard(_props: Props = {}) {
     return { monthlyRevenue: prod.revenue, monthlyCV };
   }, [prod]);
 
-  const settingsResultats = (() => {
-    try {
-      const raw = JSON.parse(localStorage.getItem('bpb-settings') || '{}');
-      return {
-        tauxActualisation: Number(raw.tauxActualisation ?? 6),
-        dureeEtude: Number(raw.dureeEtude ?? 7),
-      };
-    } catch { return { tauxActualisation: 6, dureeEtude: 7 }; }
-  })();
+  const tauxActualisation = useSettingsStore((st) => st.tauxActualisation);
   const investments = useProjectStore((s) => s.investments);
   const dureeEtude = useDureeEtude();
   const financement = useProjectStore((s) => s.financement);
   const result = useMemo(
-    () => computeFinancialResult(hypotheses, investments, financement, sectorCode, settingsResultats.tauxActualisation / 100, dureeEtude, productionData),
+    () => computeFinancialResult(hypotheses, investments, financement, sectorCode, tauxActualisation / 100, dureeEtude, productionData),
     [hypotheses, investments, financement, sectorCode, productionData],
   );
   const { cr, bilan, tafire, tresorerie, kpis } = result;

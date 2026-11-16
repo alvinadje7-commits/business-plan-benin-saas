@@ -11,18 +11,8 @@ import { useProjectStore } from '../store/projectStore';
 import { getSectorConfig, getActiveKpisSpecifiques } from '../lib/sectors-config';
 import { useProductionModel } from '../hooks/useProductionModel';
 import { MONTHLY_SERIES, type MonthlyPoint } from '../lib/mockup-data';
+import { useSettingsStore } from '../store/settingsStore';
 
-function readSettings(): { tauxActualisation: number; dureeEtude: number } {
-  try {
-    const raw = JSON.parse(localStorage.getItem('bpb-settings') || '{}');
-    return {
-      tauxActualisation: Number(raw.tauxActualisation ?? 6),
-      dureeEtude: Number(raw.dureeEtude ?? 7),
-    };
-  } catch {
-    return { tauxActualisation: 6, dureeEtude: 7 };
-  }
-}
 
 const MOIS_LABELS_DASH = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
 
@@ -44,7 +34,7 @@ export function Dashboard() {
   const sectorValues = useProjectStore((s) => s.sectorValues);
   const sectorVariant = useProjectStore((s) => s.sectorVariant);
 
-  const settings = readSettings();
+  const tauxActualisation = useSettingsStore((st) => st.tauxActualisation);
   const dureeEtude = useDureeEtude();
   const prod = useProductionModel();
   const productionData = useMemo(() => {
@@ -53,14 +43,14 @@ export function Dashboard() {
     prod.costs.forEach((c) => c.values.forEach((v, i) => { monthlyCV[i] += v; }));
     return { monthlyRevenue: prod.revenue, monthlyCV };
   }, [prod]);
-  const tauxPct = settings.tauxActualisation;
+  const tauxPct = tauxActualisation;
 
   const result = useMemo(
     () => computeFinancialResult(
       hypotheses, investments, financement, sectorCode,
-      settings.tauxActualisation / 100, dureeEtude, productionData,
+      tauxActualisation / 100, dureeEtude, productionData,
     ),
-    [hypotheses, investments, financement, sectorCode, settings.tauxActualisation, dureeEtude, productionData],
+    [hypotheses, investments, financement, sectorCode, tauxActualisation, dureeEtude, productionData],
   );
   const kpis = result.kpis;
   const monthlyPoints = useMemo(

@@ -4,18 +4,8 @@ import { useProjectStore } from '../../store/projectStore';
 import { computeFinancialResult, fmtFCFA } from '../../lib/financial-statements-engine';
 import { computeLevers, type LeverResult } from '../../lib/goal-seek';
 import { useProductionModel } from '../../hooks/useProductionModel';
+import { useSettingsStore } from '../../store/settingsStore';
 
-function readSettings() {
-  try {
-    const raw = JSON.parse(localStorage.getItem('bpb-settings') || '{}');
-    return {
-      tauxActualisation: Number(raw.tauxActualisation ?? 6),
-      dureeEtude: Number(raw.dureeEtude ?? 7),
-    };
-  } catch {
-    return { tauxActualisation: 6, dureeEtude: 7 };
-  }
-}
 
 function fmtValue(value: number, unit: 'FCFA' | '%'): string {
   if (unit === '%') return value.toFixed(1) + ' %';
@@ -52,8 +42,9 @@ export function ObjectifTRIView() {
     prod.costs.forEach((c) => c.values.forEach((v, i) => { monthlyCV[i] += v; }));
     return { monthlyRevenue: prod.revenue, monthlyCV };
   }, [prod]);
-  const settings = readSettings();
-  const taux = settings.tauxActualisation / 100;
+  const tauxActualisation = useSettingsStore((st) => st.tauxActualisation);
+  const dureeEtudeSettings = useSettingsStore((st) => st.dureeEtude);
+  const taux = tauxActualisation / 100;
   const horizon = useDureeEtude();
 
   const currentResult = useMemo(
@@ -118,7 +109,7 @@ export function ObjectifTRIView() {
           </p>
         </div>
         <span className="text-[11px] px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-medium">
-          Taux {settings.tauxActualisation} % · Horizon {horizon} ans
+          Taux {tauxActualisation} % · Horizon {horizon} ans
         </span>
       </div>
 

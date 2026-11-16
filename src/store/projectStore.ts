@@ -14,6 +14,7 @@ import type { SalaryLine } from '../lib/charges-salaires';
 import type { ChargeExterne } from '../lib/charges-externes';
 import type { TaxLine } from '../lib/impots-taxes';
 import { computeSalaries } from '../lib/charges-salaires';
+import { useSettingsStore } from './settingsStore';
 
 const INITIAL_SECTOR = 'aviculture';
 const INITIAL_VALUES = getDefaultSectorValues(INITIAL_SECTOR);
@@ -193,12 +194,8 @@ export const useProjectStore = create<ProjectState>()(
           const n = Number(v || 0);
           const years = isFinite(n) && n > 0 ? Math.max(1, Math.ceil(n)) : 7;
           const nextHyp = { ...s.hypotheses, dureeEtude: years };
-          // Sync bpb-settings (best effort)
-          try {
-            const raw = JSON.parse(localStorage.getItem('bpb-settings') || '{}');
-            raw.dureeEtude = years;
-            localStorage.setItem('bpb-settings', JSON.stringify(raw));
-          } catch {}
+          // Sync bpb-settings via store (réactif)
+          try { useSettingsStore.getState()._save({ dureeEtude: years }); } catch {}
           return { financement: nextFin, hypotheses: nextHyp };
         }
         return { financement: nextFin };

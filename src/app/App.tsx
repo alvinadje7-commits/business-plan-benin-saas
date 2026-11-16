@@ -17,6 +17,7 @@ import { ParametresView } from '../components/views/ParametresView';
 import { ObjectifTRIView } from '../components/views/ObjectifTRIView';
 import { VariantBadge } from '../components/VariantSelector';
 import { getSectorConfig } from '../lib/sectors-config';
+import { useSettingsStore } from '../store/settingsStore';
 
 type View = 'objectif' | 'dashboard' | 'projects' | 'assistant' | 'financial' | 'scenarios' | 'exports' | 'share' | 'settings';
 
@@ -51,31 +52,12 @@ export default function App() {
   // ── Sidebar dynamique ──
   const promoterName = useProjectStore((s) => s.info.promoterName);
   const promoterRole = useProjectStore((s) => s.info.currentRole);
-  const [orgSettings, setOrgSettings] = useState<{ organisation: string; rccm: string; ifu: string; devise: string }>(() => {
-    try {
-      const raw = JSON.parse(localStorage.getItem('bpb-settings') || '{}');
-      return {
-        organisation: raw.organisation || 'Mon Organisation',
-        rccm: raw.rccm || '—',
-        ifu: raw.ifu || '—',
-        devise: raw.devise || 'XOF',
-      };
-    } catch {
-      return { organisation: 'Mon Organisation', rccm: '—', ifu: '—', devise: 'XOF' };
-    }
-  });
-  // Re-lire bpb-settings quand la vue change (retour de Paramètres)
-  useEffect(() => {
-    try {
-      const raw = JSON.parse(localStorage.getItem('bpb-settings') || '{}');
-      setOrgSettings({
-        organisation: raw.organisation || 'Mon Organisation',
-        rccm: raw.rccm || '—',
-        ifu: raw.ifu || '—',
-        devise: raw.devise || 'XOF',
-      });
-    } catch {}
-  }, [view]);
+  const orgSettings = useSettingsStore((s) => ({
+    organisation: s.organisation,
+    rccm: s.rccm,
+    ifu: s.ifu,
+    devise: s.devise,
+  }));
 
   // ── Compteur projets (API + localStorage) ──
   const [projectsCount, setProjectsCount] = useState(0);

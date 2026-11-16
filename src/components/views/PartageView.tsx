@@ -5,6 +5,7 @@ import { useProjectStore } from '../../store/projectStore';
 import { BANQUES_BENIN } from '../../types/project';
 import { useProductionModel } from '../../hooks/useProductionModel';
 import { useDureeEtude } from '../../hooks/useDureeEtude';
+import { useSettingsStore } from '../../store/settingsStore';
 
 export function PartageView() {
   const [banque, setBanque] = useState('BOA Bénin');
@@ -21,10 +22,8 @@ export function PartageView() {
     prod.costs.forEach((c: any) => c.values.forEach((v: number, i: number) => { monthlyCV[i] += v; }));
     return { monthlyRevenue: prod.revenue, monthlyCV };
   }, [prod]);
-  const settings = useMemo(() => {
-    try { return JSON.parse(localStorage.getItem('bpb-settings') || '{}'); } catch { return {}; }
-  }, []);
-  const tauxActu = Number(settings.tauxActualisation ?? 6) / 100;
+  const tauxActualisation = useSettingsStore((st) => st.tauxActualisation);
+  const tauxActu = tauxActualisation / 100;
   const result = useMemo(
     () => computeFinancialResult(hypotheses, investments, financement, undefined, tauxActu, dureeEtude, productionData),
     [hypotheses, investments, financement, tauxActu, dureeEtude, productionData],
