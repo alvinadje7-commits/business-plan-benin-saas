@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import { useProjectStore } from '../../store/projectStore';
 import { SECTORS } from '../../lib/mockup-data';
 import { FormSection, FormField, inputClass, grid2 } from './FormSection';
 import {
   LEGAL_FORMS,
   BENIN_CITIES,
   CONTEXT_FISCAL,
-  DEFAULT_GENERAL_INFO,
   type GeneralInfo,
   type LegalForm,
   type Shareholder,
@@ -16,36 +15,29 @@ interface Props {
 }
 
 export function InfosGenerales({ onSave }: Props) {
-  const [info, setInfo] = useState<GeneralInfo>(DEFAULT_GENERAL_INFO);
+  const info = useProjectStore((s) => s.info);
+  const updateInfo = useProjectStore((s) => s.updateInfo);
 
   const update = <K extends keyof GeneralInfo>(key: K, value: GeneralInfo[K]) => {
-    setInfo((prev) => ({ ...prev, [key]: value }));
+    updateInfo(key, value);
   };
 
   const handleSave = () => {
     if (onSave) onSave(info);
-    else alert('💾 Infos générales enregistrées (mode démo)\nDans la version finale : synchronisation Neon.');
+    else alert('💾 Infos générales — sauvegardées automatiquement (store local)');
   };
 
-  // --- Gestion des associés ---
+  // --- Gestion des associés (store live) ---
   const updateShareholder = (id: string, patch: Partial<Shareholder>) => {
-    setInfo((prev) => ({
-      ...prev,
-      shareholders: prev.shareholders.map((s) => (s.id === id ? { ...s, ...patch } : s)),
-    }));
+    const next = info.shareholders.map((sh) => (sh.id === id ? { ...sh, ...patch } : sh));
+    updateInfo('shareholders', next);
   };
   const addShareholder = () => {
     const id = 'sh' + Date.now();
-    setInfo((prev) => ({
-      ...prev,
-      shareholders: [...prev.shareholders, { id, name: '', parts: 0, percent: 0, amount: 0 }],
-    }));
+    updateInfo('shareholders', [...info.shareholders, { id, name: '', parts: 0, percent: 0, amount: 0 }]);
   };
   const removeShareholder = (id: string) => {
-    setInfo((prev) => ({
-      ...prev,
-      shareholders: prev.shareholders.filter((s) => s.id !== id),
-    }));
+    updateInfo('shareholders', info.shareholders.filter((sh) => sh.id !== id));
   };
 
   const totalPercent = info.shareholders.reduce((sum, s) => sum + (s.percent || 0), 0);

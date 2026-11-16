@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useProjectStore } from '../store/projectStore';
 import { SECTORS } from '../lib/mockup-data';
 import { Dashboard } from '../components/Dashboard';
@@ -53,12 +53,51 @@ export default function App() {
 
   const currentSector = SECTORS.find((s) => s.code === selectedSector) || SECTORS[0];
 
+  // Header dynamique
+  const location = useProjectStore((s) => s.info.location);
+  const hypotheses = useProjectStore((s) => s.hypotheses);
+  const investments = useProjectStore((s) => s.investments);
+  const financement = useProjectStore((s) => s.financement);
+  const [isRecalcul, setIsRecalcul] = useState(false);
+  useEffect(() => {
+    setIsRecalcul(true);
+    const t = setTimeout(() => setIsRecalcul(false), 700);
+    return () => clearTimeout(t);
+  }, [hypotheses, investments, financement, selectedSector]);
+  const dureeEtude = (() => {
+    try { return Number(JSON.parse(localStorage.getItem('bpb-settings') || '{}').dureeEtude ?? 7); }
+    catch { return 7; }
+  })();
+
   const saveProject = async () => {
     try {
       const result = await useProjectStore.getState().saveCurrentProject();
       alert('✅ Projet sauvegardé (id: ' + result.id.slice(0, 8) + '…)');
     } catch (e) {
-      alert('❌ Erreur: ' + (e as Error).message);
+      // Fallback : sauvegarde locale (API Cloudflare indisponible en localhost)
+      const st = useProjectStore.getState();
+      const snapshot = {
+        name: (st.info as any)?.nomEntreprise || 'Sans titre',
+        sector: st.sectorCode,
+        variant: st.sectorVariant,
+        savedAt: new Date().toISOString(),
+        hypotheses: st.hypotheses,
+        investments: st.investments,
+        financement: st.financement,
+        info: st.info,
+        sectorValues: st.sectorValues,
+      };
+      try {
+        const existing = JSON.parse(localStorage.getItem('bpb-local-projects') || '[]');
+        existing.unshift(snapshot);
+        localStorage.setItem('bpb-local-projects', JSON.stringify(existing.slice(0, 50)));
+      } catch {}
+      const msg = (e as Error).message || '';
+      if (msg.includes('401') || msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('HTTP')) {
+        alert('✅ Projet sauvegardé LOCALEMENT\n\n(API Neon indisponible en localhost — le projet est conservé dans ton navigateur)\n\nTu pourras rouvrir ce projet via "Projets" dans la sidebar.');
+      } else {
+        alert('❌ Erreur: ' + msg);
+      }
     }
   }
 
@@ -144,12 +183,12 @@ export default function App() {
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <h1 className="font-semibold text-sm lg:text-base truncate max-w-[280px] lg:max-w-md">{projectName}</h1>
+                <h1 className="font-semibold text-sm lg:text-base truncate max-w-[280px] lg:max-w-md">{projectName || 'Nouveau projet'}</h1>
                 <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-medium">Brouillon</span>
                 <span className="px-1.5 py-0.5 rounded-full bg-[#0F172A] text-white text-[10px]">{currentSector.name}</span>
               </div>
               <div className="text-[10px] lg:text-[11px] text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
-                <span>📍 Parakou</span> • <span>36 mois</span> • <span>XOF</span> • <span className="text-emerald-600">● Recalcul actif</span>
+                <span>📍 {location || 'Cotonou'}</span> • <span>{dureeEtude * 12} mois</span> • <span>XOF</span> • <span className={isRecalcul ? 'text-amber-600 animate-pulse' : 'text-emerald-600'}>● {isRecalcul ? 'Recalcul…' : 'Recalcul actif'}</span>
               </div>
             </div>
             <div className="flex gap-1.5">
