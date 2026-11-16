@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 import { computeFinancialResult, fmtFCFA } from '../../lib/financial-statements-engine';
 import { useProjectStore } from '../../store/projectStore';
+import { useProductionModel } from '../../hooks/useProductionModel';
+import { useDureeEtude } from '../../hooks/useDureeEtude';
 
 export function ExportsView() {
   const [busy, setBusy] = useState<string | null>(null);
@@ -8,9 +10,21 @@ export function ExportsView() {
   const investments = useProjectStore((s) => s.investments);
   const financement = useProjectStore((s) => s.financement);
 
+  const prod = useProductionModel();
+  const dureeEtude = useDureeEtude();
+  const productionData = useMemo(() => {
+    if (!prod) return undefined;
+    const monthlyCV = new Array(prod.revenue.length).fill(0);
+    prod.costs.forEach((c: any) => c.values.forEach((v: number, i: number) => { monthlyCV[i] += v; }));
+    return { monthlyRevenue: prod.revenue, monthlyCV };
+  }, [prod]);
+  const settings = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem('bpb-settings') || '{}'); } catch { return {}; }
+  }, []);
+  const tauxActu = Number(settings.tauxActualisation ?? 6) / 100;
   const result = useMemo(
-    () => computeFinancialResult(hypotheses, investments, financement),
-    [hypotheses, investments, financement],
+    () => computeFinancialResult(hypotheses, investments, financement, undefined, tauxActu, dureeEtude, productionData),
+    [hypotheses, investments, financement, tauxActu, dureeEtude, productionData],
   );
 
   const exportCSV = () => {
