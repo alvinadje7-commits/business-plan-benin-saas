@@ -484,6 +484,150 @@ const IMMOBILIER_VARIANTS: Record<string, SectorVariant> = {
     },
   },
 
+  complexe: {
+    key: 'complexe',
+    icon: '🏗️',
+    label: 'Complexe multi-composants',
+    description: "Programme combiné : cochez les composants (logements, bureaux, hôtel, restaurant, piscine, salle de fête, salle de réunion)",
+    fields: [
+      // ── Activateurs ──
+      { key: 'activeLogements', label: 'Logements (1 = oui, 0 = non)', type: 'integer', default: 1, group: 'production', min: 0, max: 1 },
+      { key: 'activeBureaux', label: 'Bureaux (1 = oui, 0 = non)', type: 'integer', default: 1, group: 'production', min: 0, max: 1 },
+      { key: 'activeHotel', label: 'Hôtel / hébergement (1 = oui, 0 = non)', type: 'integer', default: 0, group: 'production', min: 0, max: 1 },
+      { key: 'activeRestaurant', label: 'Restaurant (1 = oui, 0 = non)', type: 'integer', default: 0, group: 'production', min: 0, max: 1 },
+      { key: 'activePiscine', label: 'Piscine (1 = oui, 0 = non)', type: 'integer', default: 0, group: 'production', min: 0, max: 1 },
+      { key: 'activeSalleFete', label: 'Salle de fête (1 = oui, 0 = non)', type: 'integer', default: 0, group: 'production', min: 0, max: 1 },
+      { key: 'activeSalleReunion', label: 'Salle de réunion (1 = oui, 0 = non)', type: 'integer', default: 0, group: 'production', min: 0, max: 1 },
+
+      // ── Logements (visible si activeLogements === 1) ──
+      { key: 'nbLogements', label: 'Nombre de logements', type: 'integer', default: 15, group: 'production', min: 1, max: 300, visibleIf: (v) => v.activeLogements === 1 },
+      { key: 'surfaceMoyenne', label: 'Surface moyenne / logement', type: 'decimal', unit: 'm²', default: 90, group: 'production', min: 30, max: 300, visibleIf: (v) => v.activeLogements === 1 },
+      { key: 'prixUnitaireLogement', label: 'Prix vente / logement', type: 'currency', unit: 'FCFA', default: 22000000, group: 'commercial', visibleIf: (v) => v.activeLogements === 1 },
+      { key: 'coutConstructionLogement', label: 'Coût construction / logement', type: 'currency', unit: 'FCFA', default: 13000000, group: 'charges', visibleIf: (v) => v.activeLogements === 1 },
+
+      // ── Bureaux (visible si activeBureaux === 1) ──
+      { key: 'nbBureaux', label: 'Nombre de bureaux / plateaux', type: 'integer', default: 6, group: 'production', min: 1, max: 100, visibleIf: (v) => v.activeBureaux === 1 },
+      { key: 'surfaceBureauMoyenne', label: 'Surface moyenne / bureau', type: 'decimal', unit: 'm²', default: 50, group: 'production', min: 15, max: 500, visibleIf: (v) => v.activeBureaux === 1 },
+      { key: 'loyerM2MoisBureau', label: 'Loyer / m² / mois (bureaux)', type: 'currency', unit: 'FCFA', default: 8000, group: 'commercial', visibleIf: (v) => v.activeBureaux === 1 },
+      { key: 'tauxOccupationBureau', label: "Taux d'occupation bureaux", type: 'percent', unit: '%', default: 75, group: 'commercial', min: 40, max: 100, visibleIf: (v) => v.activeBureaux === 1 },
+      { key: 'coutConstructionBureauM2', label: 'Coût construction bureau / m²', type: 'currency', unit: 'FCFA', default: 180000, group: 'charges', visibleIf: (v) => v.activeBureaux === 1 },
+
+      // ── Hôtel / hébergement (65% par défaut, visible si activeHotel === 1) ──
+      { key: 'nbChambres', label: 'Nombre de chambres', type: 'integer', default: 30, group: 'production', min: 5, max: 500, visibleIf: (v) => v.activeHotel === 1 },
+      { key: 'prixNuiteeMoyen', label: 'Prix moyen / nuitée', type: 'currency', unit: 'FCFA', default: 35000, group: 'commercial', visibleIf: (v) => v.activeHotel === 1 },
+      { key: 'tauxOccupationMoyen', label: "Taux d'occupation hôtel", type: 'percent', unit: '%', default: 65, group: 'commercial', min: 30, max: 95, description: 'Défaut Cotonou 65%', visibleIf: (v) => v.activeHotel === 1 },
+      { key: 'coutConstructionChambre', label: 'Coût construction / chambre', type: 'currency', unit: 'FCFA', default: 12000000, group: 'charges', visibleIf: (v) => v.activeHotel === 1 },
+
+      // ── Restaurant (visible si activeRestaurant === 1) ──
+      { key: 'nbCouvertsMoyen', label: 'Couverts moyens / jour', type: 'integer', default: 60, group: 'production', min: 0, max: 500, visibleIf: (v) => v.activeRestaurant === 1 },
+      { key: 'ticketMoyenRestaurant', label: 'Ticket moyen restaurant', type: 'currency', unit: 'FCFA', default: 8000, group: 'commercial', visibleIf: (v) => v.activeRestaurant === 1 },
+      { key: 'coutMatiereRestaurantPct', label: 'Matière restaurant (% CA resto)', type: 'percent', unit: '%', default: 35, group: 'charges', min: 20, max: 55, visibleIf: (v) => v.activeRestaurant === 1 },
+
+      // ── Piscine (visible si activePiscine === 1) ──
+      { key: 'entreesPiscineJour', label: 'Entrées piscine / jour', type: 'integer', default: 20, group: 'production', min: 0, max: 300, visibleIf: (v) => v.activePiscine === 1 },
+      { key: 'prixEntreePiscine', label: 'Prix entrée piscine', type: 'currency', unit: 'FCFA', default: 3000, group: 'commercial', visibleIf: (v) => v.activePiscine === 1 },
+
+      // ── Salle de fête (forfait événementiel, visible si activeSalleFete === 1) ──
+      { key: 'nbEvenementsMois', label: 'Nombre événements / mois', type: 'integer', default: 3, group: 'production', min: 0, max: 30, visibleIf: (v) => v.activeSalleFete === 1 },
+      { key: 'prixMoyenEvenement', label: 'Prix moyen / événement', type: 'currency', unit: 'FCFA', default: 800000, group: 'commercial', min: 500000, max: 2000000, description: 'Mariages, anniversaires (500k-2M)', visibleIf: (v) => v.activeSalleFete === 1 },
+
+      // ── Salle de réunion (visible si activeSalleReunion === 1) ──
+      { key: 'nbSallesReunion', label: 'Nombre de salles réunion', type: 'integer', default: 2, group: 'production', min: 0, max: 20, visibleIf: (v) => v.activeSalleReunion === 1 },
+      { key: 'tarifJourSalleReunion', label: 'Tarif location / jour / salle', type: 'currency', unit: 'FCFA', default: 150000, group: 'commercial', visibleIf: (v) => v.activeSalleReunion === 1 },
+      { key: 'tauxOccupationSalleReunion', label: "Taux d'occupation salle réunion", type: 'percent', unit: '%', default: 40, group: 'commercial', min: 0, max: 100, visibleIf: (v) => v.activeSalleReunion === 1 },
+    ],
+    buildHypotheses: (v) => {
+      const dureeAns = Math.max(1, v.dureeProgramme / 12);
+
+      // Logements (vente étalée)
+      const caLogementsTotal = v.activeLogements ? v.nbLogements * v.prixUnitaireLogement : 0;
+      const caLogementsAnnuel = caLogementsTotal / dureeAns;
+      const coutLogements = v.activeLogements ? v.nbLogements * v.coutConstructionLogement : 0;
+
+      // Bureaux (loyers récurrents)
+      const surfaceBureauTotale = v.activeBureaux ? v.nbBureaux * v.surfaceBureauMoyenne : 0;
+      const surfaceLouee = surfaceBureauTotale * ((v.tauxOccupationBureau ?? 0) / 100);
+      const loyerBureauxMensuel = surfaceLouee * (v.loyerM2MoisBureau ?? 0);
+      const caBureauxAnnuel = loyerBureauxMensuel * 12;
+      const coutBureaux = surfaceBureauTotale * (v.coutConstructionBureauM2 ?? 0);
+
+      // Hôtel
+      const nuitsVenduesMois = v.activeHotel ? v.nbChambres * 30 * ((v.tauxOccupationMoyen ?? 0) / 100) : 0;
+      const caHotelAnnuel = nuitsVenduesMois * (v.prixNuiteeMoyen ?? 0) * 12;
+      const coutHotel = v.activeHotel ? v.nbChambres * v.coutConstructionChambre : 0;
+      const coutExploitHotel = nuitsVenduesMois * 8000 * 12;
+
+      // Restaurant
+      const caRestoAnnuel = v.activeRestaurant ? v.nbCouvertsMoyen * 30 * v.ticketMoyenRestaurant * 12 : 0;
+      const coutMatiereResto = caRestoAnnuel * ((v.coutMatiereRestaurantPct ?? 0) / 100);
+
+      // Piscine
+      const caPiscineAnnuel = v.activePiscine ? v.entreesPiscineJour * 30 * v.prixEntreePiscine * 12 : 0;
+
+      // Salle de fête (forfait événementiel)
+      const caSalleFeteAnnuel = v.activeSalleFete ? v.nbEvenementsMois * v.prixMoyenEvenement * 12 : 0;
+
+      // Salle de réunion
+      const caSalleReunionAnnuel = v.activeSalleReunion ? v.nbSallesReunion * 30 * 0.4 * ((v.tauxOccupationSalleReunion ?? 0) / 100) * v.tarifJourSalleReunion * 12 : 0;
+
+      const caAnnuel = caLogementsAnnuel + caBureauxAnnuel + caHotelAnnuel + caRestoAnnuel + caPiscineAnnuel + caSalleFeteAnnuel + caSalleReunionAnnuel;
+      const caMensuel = caAnnuel / 12;
+
+      // Achats / coûts variables
+      const achatsAnnuel = coutExploitHotel + coutMatiereResto;
+      // Coûts de construction amortis (capex ramené en % du CA sur la durée)
+      const coutConstructionTotal = coutLogements + coutBureaux + coutHotel;
+      const caGlobal = caLogementsTotal + (caBureauxAnnuel + caHotelAnnuel + caRestoAnnuel + caPiscineAnnuel + caSalleFeteAnnuel + caSalleReunionAnnuel) * dureeAns;
+      const pctAchats = caGlobal > 0 ? ((coutConstructionTotal + achatsAnnuel * dureeAns) / caGlobal) * 100 : 65;
+
+      const fraisPct = ((v.fraisCommerciaux ?? 0) + (v.fraisNotaire ?? 0)) / 100;
+      const chargesExt = caAnnuel * fraisPct + (v.taxesFoncieres ?? 0) + ((v.permisConstruire ?? 0) + (v.agrementPromoteur ?? 0) + (v.assuranceProgramme ?? 0)) / dureeAns;
+      const masseSal = v.nbEmployes * v.salaireMoyen * 12 * (1 + v.chargesSociales / 100);
+
+      return {
+        caMensuel,
+        pctAchats: Math.min(95, Math.max(5, pctAchats)),
+        pctChargesExt: caAnnuel > 0 ? (chargesExt / caAnnuel) * 100 : 12,
+        masseSalariale: masseSal,
+        joursStockage: 15,
+        joursClients: 45,
+        joursFournisseurs: 30,
+      };
+    },
+    investmentTemplates: [
+      { label: 'Acquisition terrain', category: 'Corporel', cost: 80_000_000, startDate: DEFAULT_INVEST_DATE, duration: 30, mode: 'Linéaire' },
+      { label: 'Construction logements (tranche 1)', category: 'Corporel', cost: 195_000_000, startDate: DEFAULT_INVEST_DATE, duration: 30, mode: 'Linéaire' },
+      { label: 'Construction bureaux', category: 'Corporel', cost: 54_000_000, startDate: DEFAULT_INVEST_DATE, duration: 30, mode: 'Linéaire' },
+      { label: 'Construction hôtel (chambres)', category: 'Corporel', cost: 360_000_000, startDate: DEFAULT_INVEST_DATE, duration: 30, mode: 'Linéaire' },
+      { label: 'Aménagement restaurant', category: 'Corporel', cost: 15_000_000, startDate: DEFAULT_INVEST_DATE, duration: 10, mode: 'Linéaire' },
+      { label: 'Piscine & équipements', category: 'Corporel', cost: 12_000_000, startDate: DEFAULT_INVEST_DATE, duration: 15, mode: 'Linéaire' },
+      { label: 'Salle de fête', category: 'Corporel', cost: 20_000_000, startDate: DEFAULT_INVEST_DATE, duration: 15, mode: 'Linéaire' },
+      { label: 'Salles de réunion', category: 'Corporel', cost: 8_000_000, startDate: DEFAULT_INVEST_DATE, duration: 7, mode: 'Linéaire' },
+      { label: 'Voirie & VRD', category: 'Corporel', cost: 30_000_000, startDate: DEFAULT_INVEST_DATE, duration: 20, mode: 'Linéaire' },
+    ],
+    chargeRubriques: ['Terrain', 'Construction (tous composants)', 'VRD', 'Frais commerciaux', 'Notaire & actes', 'Taxes foncières', 'Personnel', 'Maintenance immeubles', 'Exploitation hôtel', 'Matière restaurant', 'Permis & agréments'],
+    kpisSpecifiques: (v) => {
+      const activeCount = ['activeLogements', 'activeBureaux', 'activeHotel', 'activeRestaurant', 'activePiscine', 'activeSalleFete', 'activeSalleReunion'].filter((k) => v[k] === 1).length;
+      // Calcul simplifié pour KPIs
+      const dureeAns = Math.max(1, v.dureeProgramme / 12);
+      const caLogementsAnnuel = v.activeLogements ? (v.nbLogements * v.prixUnitaireLogement) / dureeAns : 0;
+      const caBureauxAnnuel = v.activeBureaux ? v.nbBureaux * v.surfaceBureauMoyenne * ((v.tauxOccupationBureau ?? 0) / 100) * (v.loyerM2MoisBureau ?? 0) * 12 : 0;
+      const caHotelAnnuel = v.activeHotel ? v.nbChambres * 30 * ((v.tauxOccupationMoyen ?? 0) / 100) * (v.prixNuiteeMoyen ?? 0) * 12 : 0;
+      const caRestoAnnuel = v.activeRestaurant ? v.nbCouvertsMoyen * 30 * v.ticketMoyenRestaurant * 12 : 0;
+      const caPiscineAnnuel = v.activePiscine ? v.entreesPiscineJour * 30 * v.prixEntreePiscine * 12 : 0;
+      const caSalleFeteAnnuel = v.activeSalleFete ? v.nbEvenementsMois * v.prixMoyenEvenement * 12 : 0;
+      const caSalleReunionAnnuel = v.activeSalleReunion ? v.nbSallesReunion * 30 * 0.4 * ((v.tauxOccupationSalleReunion ?? 0) / 100) * v.tarifJourSalleReunion * 12 : 0;
+      const caAnnuel = caLogementsAnnuel + caBureauxAnnuel + caHotelAnnuel + caRestoAnnuel + caPiscineAnnuel + caSalleFeteAnnuel + caSalleReunionAnnuel;
+      const partRecurrent = caAnnuel > 0 ? (((caAnnuel - caLogementsAnnuel) / caAnnuel) * 100) : 0;
+      return [
+        { label: 'Composants actifs', value: String(activeCount), hint: '/ 7', color: activeCount >= 3 ? 'accent' : 'primary' },
+        { label: 'CA annuel total', value: fmt(caAnnuel), hint: 'FCFA', color: 'accent' },
+        { label: 'Part récurrent', value: partRecurrent.toFixed(0), hint: '% (hors ventes logements)', color: partRecurrent >= 40 ? 'accent' : 'primary' },
+        { label: 'Mix logements', value: caAnnuel > 0 ? ((caLogementsAnnuel / caAnnuel) * 100).toFixed(0) : '0', hint: '% (one-shot)', color: 'primary' },
+      ];
+    },
+  },
+
 };
 
 
