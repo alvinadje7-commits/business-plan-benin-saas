@@ -11,6 +11,11 @@ import { seasonalModel } from './seasonal-model';
 import { projectModel } from './project-model';
 import { tjmModel } from './tjm-model';
 import { capacityModel } from './capacity-model';
+import { logementsModel } from './immobilier-logements-model';
+import { bureauxModel } from './immobilier-bureaux-model';
+import { hotelModel } from './immobilier-hotel-model';
+import { logementsBureauxModel } from './immobilier-logements-bureaux-model';
+import { complexeModel } from './immobilier-complexe-model';
 import type { ProductionModel } from './types';
 
 const registry: Record<string, ProductionModel> = {
@@ -44,6 +49,11 @@ const registry: Record<string, ProductionModel> = {
   // ── Pattern F — Capacité ──
   'restauration':        capacityModel,
   'immobilier':          capacityModel,
+  'immobilier:logements':           logementsModel,
+  'immobilier:bureaux':             bureauxModel,
+  'immobilier:hotel':               hotelModel,
+  'immobilier:logements_bureaux':   logementsBureauxModel,
+  'immobilier:complexe':            complexeModel,
 };
 
 function normalize(code: string): string {
