@@ -38,7 +38,7 @@ export function HypothesesCard({ onValidate }: Props) {
   const updateSectorValue = useProjectStore((s) => s.updateSectorValue);
 
   const sector = getSectorConfig(sectorCode);
-  const activeFields = getActiveFields(sector, sectorVariant);
+  const activeFields = getActiveFields(sector, sectorVariant, sectorValues);
   const groups = getSectorGroups(sector);
 
   const sig = computeSIG(h);

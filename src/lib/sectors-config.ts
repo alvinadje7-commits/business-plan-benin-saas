@@ -13,6 +13,7 @@ export interface SectorField {
   description?: string;
   min?: number;
   max?: number;
+  visibleIf?: (values: Record<string, number>) => boolean;
 }
 
 export interface SectorFieldGroup {
@@ -1315,9 +1316,11 @@ export function getActiveVariant(sector: SectorConfig, variantKey?: string): Sec
   return sector.variants[key] ?? sector.variants[sector.defaultVariant ?? ''] ?? null;
 }
 
-export function getActiveFields(sector: SectorConfig, variantKey?: string): SectorField[] {
+export function getActiveFields(sector: SectorConfig, variantKey?: string, values?: Record<string, number>): SectorField[] {
   const variant = getActiveVariant(sector, variantKey);
-  return variant ? [...sector.fields, ...variant.fields] : sector.fields;
+  const all = variant ? [...sector.fields, ...variant.fields] : sector.fields;
+  if (!values) return all;
+  return all.filter((f) => !f.visibleIf || f.visibleIf(values));
 }
 
 export function getActiveInvestmentTemplates(sector: SectorConfig, variantKey?: string) {
