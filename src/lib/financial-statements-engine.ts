@@ -36,11 +36,46 @@ function computeCR(h: Hypotheses, inv: Investment[], fin: Financement, durationY
   for (let a = 0; a < durationYears; a++) {
     let ca: number;
     let achats: number;
+    let monthlyRevenueYear: number[] = [];
+    let monthlyCVYear: number[] = [];
     if (productionData && productionData.monthlyRevenue.length > 0) {
-      ca = aggregateYearly(productionData.monthlyRevenue, a);
-      achats = productionData.monthlyCV.length > 0
-        ? aggregateYearly(productionData.monthlyCV, a)
-        : ca * (h.pctAchats / 100);
+      const startIdx = a * 12;
+      const availableMonths = Math.max(0, Math.min(12, productionData.monthlyRevenue.length - startIdx));
+      if (availableMonths === 0) {
+        // Pas de données pour cette année → flux 0
+        monthlyRevenueYear = Array(12).fill(0);
+        monthlyCVYear = Array(12).fill(0);
+      } else if (availableMonths < 12) {
+        // Annualisation : (somme / n) × 12, distribuée sur 12 mois puis saisonnalisée
+        let sumRev = 0;
+        let sumCv = 0;
+        for (let m = 0; m < availableMonths; m++) {
+          const revM = productionData.monthlyRevenue[startIdx + m] ?? 0;
+          const cvM = productionData.monthlyCV[startIdx + m] ?? (revM * (h.pctAchats / 100));
+          sumRev += revM;
+          sumCv += cvM;
+        }
+        const caAnnualise = (sumRev / availableMonths) * 12;
+        const cvAnnualise = (sumCv / availableMonths) * 12;
+        const revMois = caAnnualise / 12;
+        const cvMois = cvAnnualise / 12;
+        for (let m = 0; m < 12; m++) {
+          const coeff = h.saisonnalite[m] ?? 1;
+          monthlyRevenueYear.push(revMois * coeff);
+          monthlyCVYear.push(cvMois * coeff);
+        }
+      } else {
+        // 12 mois complets : appliquer saisonnalité sur les données réelles
+        for (let m = 0; m < 12; m++) {
+          const coeff = h.saisonnalite[m] ?? 1;
+          const revM = productionData.monthlyRevenue[startIdx + m] ?? 0;
+          const cvM = productionData.monthlyCV[startIdx + m] ?? (revM * (h.pctAchats / 100));
+          monthlyRevenueYear.push(revM * coeff);
+          monthlyCVYear.push(cvM * coeff);
+        }
+      }
+      ca = monthlyRevenueYear.reduce((s, v) => s + v, 0);
+      achats = monthlyCVYear.reduce((s, v) => s + v, 0);
       caFlat = ca;
     } else {
       if (a > 0) {
@@ -48,8 +83,12 @@ function computeCR(h: Hypotheses, inv: Investment[], fin: Financement, durationY
         const growth = a === 1 ? h.croissanceA2 : growthA3;
         caFlat *= 1 + growth / 100;
       }
-      ca = caFlat;
-      achats = ca * (h.pctAchats / 100);
+      // CA mensuel × coefficients saisonniers → CA annuel réel
+      const caMoisBase = caFlat / 12;
+      monthlyRevenueYear = h.saisonnalite.map((coeff) => caMoisBase * (coeff ?? 1));
+      ca = monthlyRevenueYear.reduce((s, v) => s + v, 0);
+      monthlyCVYear = monthlyRevenueYear.map((rev) => rev * (h.pctAchats / 100));
+      achats = monthlyCVYear.reduce((s, v) => s + v, 0);
     }
     const marge = ca - achats;
     const chargesExt = ca * (h.pctChargesExt / 100);
@@ -63,7 +102,7 @@ function computeCR(h: Hypotheses, inv: Investment[], fin: Financement, durationY
     const is = rai > 0 ? rai * taxRate : 0;
     const rn = rai - is;
     const caf = rn + dotations;
-    result.push({ annee: a + 1, ca, achats, marge, chargesExt, va, personnel, ebe, dotations, re, chargesFin, rai, is, rn, caf });
+    result.push({ annee: a + 1, ca, achats, marge, chargesExt, va, personnel, ebe, dotations, re, chargesFin, rai, is, rn, caf, monthlyRevenue: monthlyRevenueYear, monthlyCV: monthlyCVYear });
   }
   return result;
 }
@@ -123,14 +162,22 @@ function computeTafire(cr: YearFinancials[], bilan: BilanYear[], fin: Financemen
 function computeTresorerie(h: Hypotheses, cr: YearFinancials[]): TresorerieMois[] {
   const y1 = cr[0];
   if (!y1) return [];
-  const caMoy = y1.ca / 12;
-  const chargesMens = (y1.achats + y1.chargesExt + y1.personnel + y1.chargesFin) / 12;
+  // Utiliser les flux mensuels déjà saisonnalisés du CR (fin de la double saisonnalité)
+  const revenusMensuels = y1.monthlyRevenue?.length === 12
+    ? y1.monthlyRevenue
+    : Array(12).fill(y1.ca / 12);
+  const cvMensuels = y1.monthlyCV?.length === 12
+    ? y1.monthlyCV
+    : Array(12).fill(y1.achats / 12);
+  const pctChargesExt = h.pctChargesExt / 100;
+  const personnelMens = y1.personnel / 12;
+  const chargesFinMens = y1.chargesFin / 12;
   const result: TresorerieMois[] = [];
   let cumul = 0;
   for (let m = 0; m < 12; m++) {
-    const coeff = h.saisonnalite[m] ?? 1;
-    const encaissements = caMoy * coeff;
-    const decaissements = chargesMens;
+    const encaissements = revenusMensuels[m];
+    const chargesExtM = revenusMensuels[m] * pctChargesExt;
+    const decaissements = cvMensuels[m] + chargesExtM + personnelMens + chargesFinMens;
     const soldeMensuel = encaissements - decaissements;
     cumul += soldeMensuel;
     result.push({ mois: MOIS_LABELS[m], encaissements: Math.round(encaissements), decaissements: Math.round(decaissements), soldeMensuel: Math.round(soldeMensuel), soldeCumule: Math.round(cumul) });

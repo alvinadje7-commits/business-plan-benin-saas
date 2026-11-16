@@ -4,7 +4,7 @@ import { DEFAULT_HYPOTHESES, DEFAULT_FINANCEMENT } from '../../types/project';
 import type { Investment } from '../../types/project';
 
 describe('Bloc D — Réconciliation production ↔ financier', () => {
-  const h = { ...DEFAULT_HYPOTHESES, caMensuel: 10_000_000, pctAchats: 55 };
+  const h = { ...DEFAULT_HYPOTHESES, caMensuel: 10_000_000, pctAchats: 55, saisonnalite: Array(12).fill(1) };
   const inv: Investment[] = [];
   const fin = DEFAULT_FINANCEMENT;
 

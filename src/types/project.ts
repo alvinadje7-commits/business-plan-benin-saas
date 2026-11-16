@@ -244,6 +244,9 @@ export interface YearFinancials {
   is: number;
   rn: number;
   caf: number;
+  // Flux mensuels saisonnalisés (12 valeurs / année) — utilisés par la trésorerie
+  monthlyRevenue?: number[];
+  monthlyCV?: number[];
 }
 
 export interface BilanYear {
