@@ -38,6 +38,15 @@ function computeCR(h: Hypotheses, inv: Investment[], fin: Financement, durationY
     let achats: number;
     let monthlyRevenueYear: number[] = [];
     let monthlyCVYear: number[] = [];
+
+    // Facteur de croissance cumulé pour l'année a (A1 = 1.0)
+    // Croissance appliquée à TOUS les cas (productionData ou caMensuel lissé)
+    let growthFactor = 1;
+    for (let y = 1; y <= a; y++) {
+      const g = y === 1 ? h.croissanceA2 : ((h as any).croissanceA3 ?? h.croissanceA2);
+      growthFactor *= 1 + (Number(g) || 0) / 100;
+    }
+
     if (productionData && productionData.monthlyRevenue.length > 0) {
       const startIdx = a * 12;
       const availableMonths = Math.max(0, Math.min(12, productionData.monthlyRevenue.length - startIdx));
@@ -46,7 +55,7 @@ function computeCR(h: Hypotheses, inv: Investment[], fin: Financement, durationY
         monthlyRevenueYear = Array(12).fill(0);
         monthlyCVYear = Array(12).fill(0);
       } else if (availableMonths < 12) {
-        // Annualisation : (somme / n) × 12, distribuée sur 12 mois puis saisonnalisée
+        // Annualisation + croissance cumulée
         let sumRev = 0;
         let sumCv = 0;
         for (let m = 0; m < availableMonths; m++) {
@@ -55,21 +64,19 @@ function computeCR(h: Hypotheses, inv: Investment[], fin: Financement, durationY
           sumRev += revM;
           sumCv += cvM;
         }
-        const caAnnualise = (sumRev / availableMonths) * 12;
-        const cvAnnualise = (sumCv / availableMonths) * 12;
-        const revMois = caAnnualise / 12;
-        const cvMois = cvAnnualise / 12;
+        const revMois = ((sumRev / availableMonths) * 12) / 12 * growthFactor;
+        const cvMois = ((sumCv / availableMonths) * 12) / 12 * growthFactor;
         for (let m = 0; m < 12; m++) {
           const coeff = h.saisonnalite[m] ?? 1;
           monthlyRevenueYear.push(revMois * coeff);
           monthlyCVYear.push(cvMois * coeff);
         }
       } else {
-        // 12 mois complets : appliquer saisonnalité sur les données réelles
+        // 12 mois complets : saisonnalité + croissance cumulée
         for (let m = 0; m < 12; m++) {
           const coeff = h.saisonnalite[m] ?? 1;
-          const revM = productionData.monthlyRevenue[startIdx + m] ?? 0;
-          const cvM = productionData.monthlyCV[startIdx + m] ?? (revM * (h.pctAchats / 100));
+          const revM = (productionData.monthlyRevenue[startIdx + m] ?? 0) * growthFactor;
+          const cvM = (productionData.monthlyCV[startIdx + m] ?? ((productionData.monthlyRevenue[startIdx + m] ?? 0) * (h.pctAchats / 100))) * growthFactor;
           monthlyRevenueYear.push(revM * coeff);
           monthlyCVYear.push(cvM * coeff);
         }
@@ -78,13 +85,8 @@ function computeCR(h: Hypotheses, inv: Investment[], fin: Financement, durationY
       achats = monthlyCVYear.reduce((s, v) => s + v, 0);
       caFlat = ca;
     } else {
-      if (a > 0) {
-        const growthA3 = (h as any).croissanceA3 ?? h.croissanceA2;
-        const growth = a === 1 ? h.croissanceA2 : growthA3;
-        caFlat *= 1 + growth / 100;
-      }
-      // CA mensuel × coefficients saisonniers → CA annuel réel
-      const caMoisBase = caFlat / 12;
+      // CA mensuel × croissance cumulée × saisonnalité
+      const caMoisBase = (caFlat / 12) * growthFactor;
       monthlyRevenueYear = h.saisonnalite.map((coeff) => caMoisBase * (coeff ?? 1));
       ca = monthlyRevenueYear.reduce((s, v) => s + v, 0);
       monthlyCVYear = monthlyRevenueYear.map((rev) => rev * (h.pctAchats / 100));
