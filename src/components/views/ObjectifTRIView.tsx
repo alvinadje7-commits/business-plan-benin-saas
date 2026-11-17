@@ -3,6 +3,8 @@ import { useDureeEtude } from '../../hooks/useDureeEtude';
 import { useProjectStore } from '../../store/projectStore';
 import { computeFinancialResult, fmtFCFA } from '../../lib/financial-statements-engine';
 import { computeLevers, type LeverResult } from '../../lib/goal-seek';
+import { getSectorBenchmark, BENCHMARK_SOURCE } from '../../lib/sector-benchmarks';
+import { getSectorConfig } from '../../lib/sectors-config';
 import { useProductionModel } from '../../hooks/useProductionModel';
 import { useSettingsStore } from '../../store/settingsStore';
 
@@ -28,6 +30,8 @@ export function ObjectifTRIView() {
   const updateHypothese = useProjectStore((s) => s.updateHypothese);
   const updateFinancement = useProjectStore((s) => s.updateFinancement);
   const updateInvestment = useProjectStore((s) => s.updateInvestment);
+  const sectorConfig = getSectorConfig(sectorCode);
+  const benchmark = getSectorBenchmark(sectorCode);
 
   const [targetTRIRaw, setTargetTRIRaw] = useState(15);
   const [validatedTRI, setValidatedTRI] = useState<number | null>(null);
@@ -99,6 +103,33 @@ export function ObjectifTRIView() {
     setTimeout(() => setAppliedKey(null), 2500);
   };
 
+  const applyBenchmarks = () => {
+    if (!benchmark) return;
+    if (!confirm(
+      `Appliquer les standards Bénin pour "${sectorConfig.name}" ?\n\n` +
+      `Cela va modifier :\n` +
+      `• Croissance A2 : ${benchmark.croissanceA2}% / A3 : ${benchmark.croissanceA3}%\n` +
+      `• Marge brute cible : ${benchmark.margeBruteCible}%\n` +
+      `• Charges extérieures : ${benchmark.pctChargesExtCible}% CA\n` +
+      `• Masse salariale : ${benchmark.masseSalarialePctCA}% CA\n` +
+      `• BFR (stockage/clients/fourn.) : ${benchmark.joursStockage}/${benchmark.joursClients}/${benchmark.joursFournisseurs} j\n\n` +
+      `Tu pourras les modifier manuellement dans Carte 3 (Hypothèses).\n` +
+      `Le CA mensuel actuel sera conservé.`
+    )) return;
+
+    const caAnnuel = hypotheses.caMensuel * 12;
+    updateHypothese('croissanceA2', benchmark.croissanceA2);
+    updateHypothese('croissanceA3', benchmark.croissanceA3);
+    updateHypothese('pctAchats', 100 - benchmark.margeBruteCible);
+    updateHypothese('pctChargesExt', benchmark.pctChargesExtCible);
+    updateHypothese('masseSalariale', Math.round(caAnnuel * benchmark.masseSalarialePctCA / 100));
+    updateHypothese('joursStockage', benchmark.joursStockage);
+    updateHypothese('joursClients', benchmark.joursClients);
+    updateHypothese('joursFournisseurs', benchmark.joursFournisseurs);
+    setAppliedKey('benchmarks');
+    setTimeout(() => setAppliedKey(null), 3000);
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -167,6 +198,45 @@ export function ObjectifTRIView() {
           </div>
         </div>
       </div>
+
+      {/* Panneau benchmarks sectoriels Bénin */}
+      {triIsValid && benchmark && (
+        <div className="rounded-xl border-2 border-blue-200 bg-blue-50 p-4">
+          <div className="flex items-start justify-between gap-3 flex-wrap mb-2">
+            <div>
+              <h3 className="text-sm font-semibold text-blue-900">
+                📊 Références Bénin — {sectorConfig.icon} {sectorConfig.name}
+              </h3>
+              <p className="text-[11px] text-blue-700 mt-0.5">
+                TRI réaliste : <b>{benchmark.triCibleRealiste.min}–{benchmark.triCibleRealiste.max} %</b>
+                {' · '}
+                Ambitieux : <b>{benchmark.triCibleAmbitieux.min}–{benchmark.triCibleAmbitieux.max} %</b>
+              </p>
+            </div>
+            <span className="text-[10px] text-blue-600 italic">{BENCHMARK_SOURCE}</span>
+          </div>
+          {benchmark.note && (
+            <p className="text-[11px] text-blue-800 mb-2">💡 {benchmark.note}</p>
+          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={applyBenchmarks}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700"
+            >
+              📋 Appliquer les standards {sectorConfig.name}
+            </button>
+            {appliedKey === 'benchmarks' && (
+              <span className="text-[11px] text-emerald-700 font-medium">
+                ✅ Standards appliqués — modifiables dans Carte 3
+              </span>
+            )}
+          </div>
+          <p className="text-[10px] text-blue-600 mt-2">
+            Le CA mensuel actuel est conservé. Seuls les taux (marge, croissance, BFR, salaires) sont préremplis.
+          </p>
+        </div>
+      )}
 
       {/* État initial */}
       {validatedTRI === null && triIsValid && (
