@@ -1,5 +1,35 @@
 import { getActiveVariant, type SectorConfig } from '../lib/sectors-config';
 
+// Label du sélecteur de variante, adapté au secteur
+function labelForSector(code: string): string {
+  switch (code) {
+    case 'aviculture':
+    case 'elevage_autre':
+      return "Type d'élevage";
+    case 'immobilier':
+      return 'Type de programme';
+    case 'btp':
+      return 'Type de chantier';
+    case 'transformation_agro':
+    case 'agro_industrie':
+    case 'anacarde':
+      return 'Type de production';
+    case 'restauration':
+      return "Type d'établissement";
+    case 'transport':
+      return 'Type de flotte';
+    case 'commerce':
+    case 'import_export':
+      return 'Type de commerce';
+    case 'agriculture':
+      return 'Type de culture';
+    case 'services':
+      return 'Type de service';
+    default:
+      return 'Variante';
+  }
+}
+
 interface Props {
   sector: SectorConfig;
   currentVariant: string;
@@ -19,7 +49,7 @@ export function VariantSelector({ sector, currentVariant, onSelect, layout = 'ca
     if (confirm(
       `Changer pour "${sector.variants![key]?.label}" ?\n\n` +
       `⚠️ Les champs spécifiques à la variante seront réinitialisés.\n` +
-      `Les champs communs (effectif, mortalité, aliment…) sont conservés.`
+      `Les champs communs du secteur ${sector.name} sont conservés.`
     )) {
       onSelect(key);
     }
@@ -28,7 +58,7 @@ export function VariantSelector({ sector, currentVariant, onSelect, layout = 'ca
   if (layout === 'compact') {
     return (
       <div className="flex items-center gap-2 flex-wrap">
-        <label className="text-xs font-medium text-slate-700">Type d'élevage</label>
+        <label className="text-xs font-medium text-slate-700">{labelForSector(sector.code)}</label>
         <select
           value={currentVariant}
           onChange={(e) => handleChange(e.target.value)}
